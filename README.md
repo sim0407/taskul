@@ -104,6 +104,10 @@ python3 -m taskul get-task T-000001
 # ブロックされているタスク一覧
 python3 -m taskul list-blockers P-0001
 # JSON: python3 -m taskul list-blockers P-0001 --json-output
+
+# 履歴（監査ログ）
+python3 -m taskul get-events [--project-id P-0001] [--type TASK_CREATED] [--limit 50]
+# JSON: 末尾に --json-output
 ```
 
 ### 更新・移動・依存（Phase 1）
@@ -154,6 +158,7 @@ uvicorn taskul.api.app:app --host 127.0.0.1 --port 8000
 | `POST /tasks/{id}/mark-done` | タスクを Done に |
 | `POST /dependencies` | 依存追加（body: `{"from_task_id","to_task_id"}`） |
 | `DELETE /dependencies?from_task_id=...&to_task_id=...` | 依存削除 |
+| `GET /events` | 履歴一覧（query: project_id, event_type, limit） |
 
 ## 環境変数・オプション
 
@@ -172,7 +177,7 @@ uvicorn taskul.api.app:app --host 127.0.0.1 --port 8000
 
 1. **操作の充実（CLI/API）** — CLI と HTTP API は完了。
 2. **状態の可視化（board / gantt / blockers）** — データ取得（get-board, get-gantt, list-blockers）は完了。表示は Phase 4 の UI で。
-3. **ルールと整合性（依存・制約・履歴）** — 依存のサイクル検出・制約は完了。履歴の共通化（events.py）・履歴参照は未着手。
+3. **ルールと整合性（依存・制約・履歴）** — 依存・制約・履歴の共通化（events.py）と参照（get-events, GET /events）は完了。
 4. **UI（Web / TUI）** — 未着手。
 
 詳細は [REPO_STRUCTURE.md](REPO_STRUCTURE.md) の「今後の拡張」を参照。

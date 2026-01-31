@@ -181,3 +181,52 @@ def get_all_dependencies(conn: sqlite3.Connection) -> list[tuple[str, str]]:
     """Return list of (from_task_id, to_task_id) for cycle detection."""
     cur = conn.execute("SELECT from_task_id, to_task_id FROM dependencies")
     return [(row["from_task_id"], row["to_task_id"]) for row in cur.fetchall()]
+
+
+def get_events(
+    conn: sqlite3.Connection,
+    limit: int = 100,
+    event_type: str | None = None,
+    project_id: str | None = None,
+) -> list[dict]:
+    """
+    List events (newest first). Optional: event_type filter, project_id filter.
+    project_id filters by payload.project_id or payload.task_id in that project.
+    """
+    import json
+    sql = "SELECT event_id, ts, actor, type, payload FROM events WHERE 1=1"
+    params: list = []
+    if event_type:
+        sql += " AND type = ?"
+        params.append(event_type)
+    sql += " ORDER BY event_id DESC LIMIT ?"
+    params.append(limit)
+    cur = conn.execute(sql, params)
+    rows = cur.fetchall()
+    out = []
+    task_ids_in_project: set[str] | None = None
+    if project_id:
+        cur2 = conn.execute("SELECT id FROM tasks WHERE project_id = ?", (project_id,))
+        task_ids_in_project = {row["id"] for row in cur2.fetchall()}
+    for row in rows:
+        payload_raw = row["payload"] or ""
+        try:
+            payload = json.loads(payload_raw) if payload_raw else None
+        except (json.JSONDecodeError, TypeError):
+            payload = payload_raw
+        if project_id and task_ids_in_project is not None:
+            if not isinstance(payload, dict):
+                continue
+            if (payload.get("project_id") != project_id
+                and payload.get("task_id") not in task_ids_in_project
+                and payload.get("from_task_id") not in task_ids_in_project
+                and payload.get("to_task_id") not in task_ids_in_project):
+                continue
+        out.append({
+            "event_id": row["event_id"],
+            "ts": row["ts"],
+            "actor": row["actor"],
+            "type": row["type"],
+            "payload": payload,
+        })
+    return out

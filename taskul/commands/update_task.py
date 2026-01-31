@@ -2,6 +2,7 @@
 import json
 import click
 from ..db import get_connection, ensure_schema, get_task, row_to_task
+from ..events import record_event
 
 STATUSES = ("Backlog", "Todo", "Doing", "Review", "Done")
 
@@ -67,11 +68,7 @@ def update_task_impl(
             "UPDATE tasks SET rank = rank - 1 WHERE project_id = ? AND status = ? AND rank > ?",
             (task["project_id"], task["status"], task["rank"]),
         )
-    payload = json.dumps({"task_id": task_id})
-    conn.execute(
-        "INSERT INTO events (actor, type, payload) VALUES (?, ?, ?)",
-        ("human", "TASK_UPDATED", payload),
-    )
+    record_event(conn, "human", "TASK_UPDATED", {"task_id": task_id})
     conn.commit()
 
     cur = conn.execute("SELECT * FROM tasks WHERE id = ?", (task_id,))

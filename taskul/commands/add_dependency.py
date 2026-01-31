@@ -3,6 +3,7 @@ import json
 import click
 from ..db import get_connection, ensure_schema, get_task
 from ..cycle_check import would_create_cycle
+from ..events import record_event
 
 
 def add_dependency_impl(conn, from_task_id: str, to_task_id: str) -> dict:
@@ -31,11 +32,7 @@ def add_dependency_impl(conn, from_task_id: str, to_task_id: str) -> dict:
         "INSERT INTO dependencies (from_task_id, to_task_id) VALUES (?, ?)",
         (from_task_id, to_task_id),
     )
-    payload = json.dumps({"from_task_id": from_task_id, "to_task_id": to_task_id})
-    conn.execute(
-        "INSERT INTO events (actor, type, payload) VALUES (?, ?, ?)",
-        ("human", "DEP_CREATED", payload),
-    )
+    record_event(conn, "human", "DEP_CREATED", {"from_task_id": from_task_id, "to_task_id": to_task_id})
     conn.commit()
     return {"from_task_id": from_task_id, "to_task_id": to_task_id}
 

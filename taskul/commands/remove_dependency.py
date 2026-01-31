@@ -2,6 +2,7 @@
 import json
 import click
 from ..db import get_connection, ensure_schema
+from ..events import record_event
 
 
 def remove_dependency_impl(conn, from_task_id: str, to_task_id: str) -> dict | None:
@@ -15,11 +16,7 @@ def remove_dependency_impl(conn, from_task_id: str, to_task_id: str) -> dict | N
         "DELETE FROM dependencies WHERE from_task_id = ? AND to_task_id = ?",
         (from_task_id, to_task_id),
     )
-    payload = json.dumps({"from_task_id": from_task_id, "to_task_id": to_task_id})
-    conn.execute(
-        "INSERT INTO events (actor, type, payload) VALUES (?, ?, ?)",
-        ("human", "DEP_REMOVED", payload),
-    )
+    record_event(conn, "human", "DEP_REMOVED", {"from_task_id": from_task_id, "to_task_id": to_task_id})
     conn.commit()
     return {"from_task_id": from_task_id, "to_task_id": to_task_id}
 

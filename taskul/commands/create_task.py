@@ -2,6 +2,7 @@
 import json
 import click
 from ..db import get_connection, ensure_schema, next_id, row_to_task
+from ..events import record_event
 
 STATUSES = ("Backlog", "Todo", "Doing", "Review", "Done")
 
@@ -27,11 +28,7 @@ def create_task_impl(conn, project_id: str, title: str, status: str = "Backlog")
         """,
         (task_id, project_id, title, status, rank),
     )
-    payload = json.dumps({"task_id": task_id, "project_id": project_id, "title": title, "status": status})
-    conn.execute(
-        "INSERT INTO events (actor, type, payload) VALUES (?, ?, ?)",
-        ("human", "TASK_CREATED", payload),
-    )
+    record_event(conn, "human", "TASK_CREATED", {"task_id": task_id, "project_id": project_id, "title": title, "status": status})
     conn.commit()
 
     cur = conn.execute("SELECT * FROM tasks WHERE id = ?", (task_id,))

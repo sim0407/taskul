@@ -87,7 +87,7 @@ DB はデフォルトで `~/.taskul/taskul.db` に作成されるためリポジ
 |------|--------|------|
 | **1** | 操作の充実（CLI/API） | CLI・API 完了 |
 | **2** | 状態の可視化（board / gantt / blockers） | データ取得完了 / 表示は Phase 4 で |
-| **3** | ルールと整合性（依存・制約・履歴） | 依存・制約は一部完了 / 履歴の共通化・参照は未着手 |
+| **3** | ルールと整合性（依存・制約・履歴） | 依存・制約・履歴（共通化・参照）完了 |
 | **4** | UI（Web / TUI） | 未着手 |
 
 ---
@@ -144,11 +144,11 @@ CLI/JSON での出力は実装済み。グラフィカルな表示は **Phase 4�
 - Task ID 不変、`(project_id, status, rank)` の一意性はスキーマとコマンドで維持済み。
 - 移動・更新時の rank の付け替えも実装済み。
 
-#### 3.3 履歴（一部完了 / 共通化・参照は未着手）
+#### 3.3 履歴（✅ 完了）
 
 - **記録**: `events` テーブルに TASK_CREATED / TASK_UPDATED / TASK_MOVED / DEP_CREATED / DEP_REMOVED を各コマンドから挿入済み。
-- **共通化**: `taskul/events.py` に `record_event(conn, actor, type, payload)` を用意し、全コマンドから呼ぶ形にすると保守しやすい（未実施）。
-- **参照**: 履歴を一覧・フィルタするコマンドや API（例: `get-events`, `GET /events`）は未着手。監査・undo 検討の土台として追加する。
+- **共通化**: `taskul/events.py` に `record_event(conn, actor, type, payload)` を用意し、全コマンド（create_task, update_task, move_task, add/remove_dependency, mark_done）から呼ぶ形にリファクタ済み。
+- **参照**: CLI `get-events`（`--project-id`, `--type`, `--limit`）、API `GET /events`（query: project_id, event_type, limit）。監査・undo 検討の土台として利用可能。
 
 ---
 

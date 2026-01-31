@@ -6,6 +6,7 @@ from .commands.get_board import get_board
 from .commands.get_gantt import get_gantt
 from .commands.get_task import get_task
 from .commands.list_blockers import list_blockers
+from .commands.get_events import get_events
 from .commands.update_task import update_task
 from .commands.move_task import move_task
 from .commands.add_dependency import add_dependency
@@ -28,6 +29,7 @@ cli.add_command(get_board)
 cli.add_command(get_gantt)
 cli.add_command(get_task)
 cli.add_command(list_blockers)
+cli.add_command(get_events)
 cli.add_command(update_task)
 cli.add_command(move_task)
 cli.add_command(add_dependency)
