@@ -25,6 +25,7 @@
   let lastGanttTasks = [];
   let lastGanttMilestones = [];
   let lastGanttRange = { fromStr: '', toStr: '' };
+  let collapsedParents = new Set(); // Track collapsed parent tasks
 
   function showView(view) {
     [viewProjects, viewBoard, viewGantt, viewBlockers].forEach(el => el.classList.add('hidden'));
@@ -471,7 +472,9 @@
     const statuses = STATUSES;
     boardLanes.innerHTML = statuses.map(status => {
       const tasks = board.lanes[status] || [];
-      const cards = tasks.map(t => renderCard(t, status));
+      // Filter out children of collapsed parents in the same status
+      const visibleTasks = tasks.filter(t => !isChildOfCollapsedParent(t, status));
+      const cards = visibleTasks.map(t => renderCard(t, status));
       return `<div class="lane ${status}" data-status="${escapeAttr(status)}"><div class="lane-title">${escapeHtml(status)}</div><div class="lane-cards">${cards.join('')}</div></div>`;
     }).join('');
     boardLanes.querySelectorAll('.btn-move-left, .btn-move-right').forEach(btn => {
@@ -482,6 +485,9 @@
     });
     boardLanes.querySelectorAll('.btn-card-edit').forEach(btn => {
       btn.addEventListener('click', () => openEditTaskModal(btn.dataset.taskId));
+    });
+    boardLanes.querySelectorAll('.btn-collapse').forEach(btn => {
+      btn.addEventListener('click', () => toggleCollapse(btn.dataset.taskId));
     });
 
     // ドラッグ&ドロップ（ステータス変更のみ）
@@ -529,6 +535,33 @@
     return allTasks.some(t => t.parent_task_id === taskId);
   }
 
+  function getTaskById(taskId) {
+    if (!lastBoard) return null;
+    const allTasks = STATUSES.flatMap(s => (lastBoard.lanes[s] || []));
+    return allTasks.find(t => t.id === taskId) || null;
+  }
+
+  function isChildOfCollapsedParent(task, currentStatus) {
+    if (!task.parent_task_id) return false;
+    // Check if parent is collapsed and in the same status
+    const parent = getTaskById(task.parent_task_id);
+    if (!parent) return false;
+    // Only collapse children in the same status as parent
+    if (parent.status === currentStatus && collapsedParents.has(task.parent_task_id)) {
+      return true;
+    }
+    return false;
+  }
+
+  function toggleCollapse(parentTaskId) {
+    if (collapsedParents.has(parentTaskId)) {
+      collapsedParents.delete(parentTaskId);
+    } else {
+      collapsedParents.add(parentTaskId);
+    }
+    renderBoardWithFilters();
+  }
+
   function renderCard(t, currentStatus) {
     const idx = STATUSES.indexOf(currentStatus);
     const hasPrev = idx > 0;
@@ -537,16 +570,50 @@
     const nextStatus = hasNext ? STATUSES[idx + 1] : null;
     const hasChildren = taskHasChildren(t.id);
     const draggable = hasChildren ? 'false' : 'true';
+
+    // Collapse/expand button for parent tasks
+    const isCollapsed = collapsedParents.has(t.id);
+    const collapseBtn = hasChildren
+      ? `<button type="button" class="btn-collapse" data-task-id="${escapeAttr(t.id)}" title="${isCollapsed ? '展開' : '折り畳み'}">${isCollapsed ? '+' : '-'}</button>`
+      : '';
     const parentBadge = hasChildren ? '<span class="card-parent-badge" title="ステータスは子タスクから自動計算">親</span>' : '';
+
+    // Show parent task info for child tasks in different status
+    let parentInfo = '';
+    if (t.parent_task_id) {
+      const parent = getTaskById(t.parent_task_id);
+      if (parent && parent.status !== currentStatus) {
+        parentInfo = `<div class="card-parent-info" title="親: ${escapeAttr(parent.id)} ${escapeAttr(parent.title)}">← ${escapeHtml(parent.title)}</div>`;
+      }
+    }
+
+    // Due date and estimate display
+    let metaInfo = '';
+    const dueDateStr = t.due_date ? t.due_date.slice(5).replace('-', '/') : '';
+    const estimateStr = t.estimate_hours != null ? t.estimate_hours + 'h' : '';
+    if (dueDateStr || estimateStr) {
+      const parts = [];
+      if (dueDateStr) parts.push(dueDateStr);
+      if (estimateStr) parts.push(estimateStr);
+      metaInfo = `<div class="card-meta">${escapeHtml(parts.join(' | '))}</div>`;
+    }
+
     const actions = `
       <div class="card-actions">
+        ${collapseBtn}
         ${hasPrev && !hasChildren ? `<button type="button" class="btn-move-left btn-arrow" data-task-id="${escapeAttr(t.id)}" data-status="${escapeAttr(prevStatus)}" title="${escapeAttr(prevStatus)}へ">←</button>` : ''}
         ${hasNext && !hasChildren ? `<button type="button" class="btn-move-right btn-arrow" data-task-id="${escapeAttr(t.id)}" data-status="${escapeAttr(nextStatus)}" title="${escapeAttr(nextStatus)}へ">→</button>` : ''}
         <button type="button" class="btn-add-subtask" data-task-id="${escapeAttr(t.id)}" data-task-title="${escapeAttr(t.title || '')}" data-task-status="${escapeAttr(currentStatus)}" title="子タスクを追加">+子タスク</button>
         <button type="button" class="btn-card-edit" data-task-id="${escapeAttr(t.id)}">編集</button>
       </div>
     `;
-    return `<div class="card${hasChildren ? ' card-parent' : ''}" data-task-id="${escapeAttr(t.id)}" draggable="${draggable}"><div class="card-id">${escapeHtml(t.id)}${parentBadge}</div><div class="card-title">${escapeHtml(t.title)}</div>${actions}</div>`;
+
+    // Child task indentation
+    const isChild = t.parent_task_id && !parentInfo; // In same status as parent
+    const childClass = isChild ? ' card-child' : '';
+    const depthClass = t.depth > 0 ? ` card-depth-${Math.min(t.depth, 3)}` : '';
+
+    return `<div class="card${hasChildren ? ' card-parent' : ''}${childClass}${depthClass}" data-task-id="${escapeAttr(t.id)}" draggable="${draggable}">${parentInfo}<div class="card-title">${escapeHtml(t.title)}</div>${metaInfo}<div class="card-footer">${parentBadge}${actions}</div></div>`;
   }
 
   async function markDone(taskId) {
