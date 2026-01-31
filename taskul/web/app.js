@@ -583,6 +583,19 @@
     return allTasks.find(t => t.id === taskId) || null;
   }
 
+  function getParentPath(task) {
+    // Build path from ancestors: "grandparent/parent/"
+    const path = [];
+    let current = task;
+    while (current && current.parent_task_id) {
+      const parent = getTaskById(current.parent_task_id);
+      if (!parent) break;
+      path.unshift(parent.title);
+      current = parent;
+    }
+    return path.length > 0 ? path.join('/') + '/' : '';
+  }
+
   function isChildOfCollapsedParent(task, currentStatus) {
     if (!task.parent_task_id) return false;
     // Check if parent is collapsed and in the same status
@@ -620,12 +633,12 @@
       : '';
     const parentBadge = hasChildren ? '<span class="card-parent-badge" title="ステータスは子タスクから自動計算">親</span>' : '';
 
-    // Show parent task info for child tasks in different status
+    // Show parent path for child tasks (grandparent/parent/ format)
     let parentInfo = '';
     if (t.parent_task_id) {
-      const parent = getTaskById(t.parent_task_id);
-      if (parent && parent.status !== currentStatus) {
-        parentInfo = `<div class="card-parent-info" title="親: ${escapeAttr(parent.id)} ${escapeAttr(parent.title)}">← ${escapeHtml(parent.title)}</div>`;
+      const parentPath = getParentPath(t);
+      if (parentPath) {
+        parentInfo = `<div class="card-parent-info" title="${escapeAttr(parentPath)}">${escapeHtml(parentPath)}</div>`;
       }
     }
 
