@@ -332,10 +332,12 @@ def get_all_dependencies(conn: sqlite3.Connection) -> list[tuple[str, str]]:
 def recalc_parent_status(conn: sqlite3.Connection, parent_task_id: str) -> None:
     """
     Recalculate parent task's status based on children (bottom-up).
-    Rules:
-    - All children Backlog → Parent Backlog
-    - All children Done → Parent Done
-    - Otherwise (mixed) → Parent Doing
+    Rules (priority order: Doing > Todo > Review > Backlog > Done):
+    - If any child is Doing → Parent Doing
+    - Else if any child is Todo → Parent Todo
+    - Else if any child is Review → Parent Review
+    - Else if any child is Backlog → Parent Backlog
+    - Else (all Done) → Parent Done
     If parent has no children, status is unchanged.
     Recursively updates ancestors.
     """
@@ -350,16 +352,19 @@ def recalc_parent_status(conn: sqlite3.Connection, parent_task_id: str) -> None:
         # No children, don't change parent status
         return
 
-    statuses = [row["status"] for row in children]
-    all_backlog = all(s == "Backlog" for s in statuses)
-    all_done = all(s == "Done" for s in statuses)
+    statuses = set(row["status"] for row in children)
 
-    if all_backlog:
-        new_status = "Backlog"
-    elif all_done:
-        new_status = "Done"
-    else:
+    # Priority order: Doing > Todo > Review > Backlog > Done
+    if "Doing" in statuses:
         new_status = "Doing"
+    elif "Todo" in statuses:
+        new_status = "Todo"
+    elif "Review" in statuses:
+        new_status = "Review"
+    elif "Backlog" in statuses:
+        new_status = "Backlog"
+    else:
+        new_status = "Done"
 
     # Get current parent status
     cur = conn.execute("SELECT status, parent_task_id FROM tasks WHERE id = ?", (parent_task_id,))
