@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>taskul</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="header">
+    <h1>taskul</h1>
+    <nav>
+      <button type="button" id="btn-projects" class="nav-btn">プロジェクト一覧</button>
+      <span id="board-title" class="board-title"></span>
+    </nav>
+  </header>
+  <main>
+    <section id="view-projects" class="view">
+      <h2>プロジェクト</h2>
+      <ul id="project-list" class="project-list"></ul>
+      <p class="hint">プロジェクトを選ぶとボードを表示します。新規作成は API (POST /projects) または CLI で。</p>
+    </section>
+    <section id="view-board" class="view hidden">
+      <div class="board-toolbar">
+        <button type="button" id="btn-back" class="btn-back">← 一覧へ</button>
+        <button type="button" id="btn-blockers" class="btn-blockers">ブロッカー一覧</button>
+      </div>
+      <div id="board-lanes" class="board-lanes"></div>
+    </section>
+    <section id="view-blockers" class="view hidden">
+      <div class="board-toolbar">
+        <button type="button" id="btn-back-blockers" class="btn-back">← ボードへ</button>
+      </div>
+      <ul id="blockers-list" class="blockers-list"></ul>
+    </section>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>

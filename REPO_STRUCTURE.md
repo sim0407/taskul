@@ -88,7 +88,7 @@ DB はデフォルトで `~/.taskul/taskul.db` に作成されるためリポジ
 | **1** | 操作の充実（CLI/API） | CLI・API 完了 |
 | **2** | 状態の可視化（board / gantt / blockers） | データ取得完了 / 表示は Phase 4 で |
 | **3** | ルールと整合性（依存・制約・履歴） | 依存・制約・履歴（共通化・参照）完了 |
-| **4** | UI（Web / TUI） | 未着手 |
+| **4** | UI（Web / TUI） | Web UI 完了（表示・ブロッカー） / TUI 未着手 |
 
 ---
 
@@ -156,9 +156,15 @@ CLI/JSON での出力は実装済み。グラフィカルな表示は **Phase 4�
 
 **目的**: ボード・ガント・ブロッカーなどを画面で見て操作できるようにする。
 
-- **Web UI**: 静的 HTML や簡易 SPA。Phase 1 の API（または CLI の JSON）を利用。SPEC の Non-Goals「Complex gantt editing UI」のため、まずは表示・簡易操作に留める想定。
-- **TUI**: ターミナル内でのボード表示・キー操作など。Cursive / Textual 等の検討。
-- いずれも Phase 1〜3 の操作とデータが揃ってから着手する想定。
+#### 4.1 Web UI（✅ 完了・表示）
+
+- **配置**: `taskul/web/`（index.html, style.css, app.js）。FastAPI で `/app/` に StaticFiles マウント。
+- **内容**: プロジェクト一覧 → プロジェクト選択で Kanban ボード（Backlog / Todo / Doing / Review / Done のレーン＋タスクカード）を表示。ブロッカー一覧ボタンでブロックされているタスクを表示。既存 API（GET /projects, GET /projects/{id}/board, GET /projects/{id}/blockers）を利用。表示のみ（編集は CLI/API）。
+- SPEC の Non-Goals「Complex gantt editing UI」のため、Gantt 表示・ドラッグ操作は未実装。
+
+#### 4.2 TUI（未着手）
+
+- ターミナル内でのボード表示・キー操作など。Textual / Cursive 等の検討。
 
 ---
 
