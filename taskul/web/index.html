@@ -17,13 +17,18 @@
   <main>
     <section id="view-projects" class="view">
       <h2>プロジェクト</h2>
+      <div class="toolbar-row">
+        <button type="button" id="btn-new-project" class="btn-primary">新規作成</button>
+      </div>
       <ul id="project-list" class="project-list"></ul>
-      <p class="hint">プロジェクトを選ぶとボードを表示します。新規作成は API (POST /projects) または CLI で。</p>
+      <p class="hint">プロジェクトを選ぶとボードを表示します。</p>
     </section>
     <section id="view-board" class="view hidden">
       <div class="board-toolbar">
         <button type="button" id="btn-back" class="btn-back">← 一覧へ</button>
         <button type="button" id="btn-blockers" class="btn-blockers">ブロッカー一覧</button>
+        <button type="button" id="btn-new-task" class="btn-primary">タスク追加</button>
+        <button type="button" id="btn-add-dependency" class="btn-back">依存を追加</button>
       </div>
       <div id="board-lanes" class="board-lanes"></div>
     </section>
@@ -33,7 +38,17 @@
       </div>
       <ul id="blockers-list" class="blockers-list"></ul>
     </section>
+    <div id="toast" class="toast hidden" role="alert"></div>
   </main>
+  <div id="modal-overlay" class="modal-overlay hidden">
+    <div id="modal" class="modal">
+      <div class="modal-header">
+        <h3 id="modal-title">—</h3>
+        <button type="button" id="modal-close" class="modal-close" aria-label="閉じる">×</button>
+      </div>
+      <div id="modal-body" class="modal-body"></div>
+    </div>
+  </div>
   <script src="app.js"></script>
 </body>
 </html>

@@ -156,7 +156,7 @@ uvicorn taskul.api.app:app --host 127.0.0.1 --port 8000
 
 - **http://127.0.0.1:8000/** … API ルート（JSON: `service`, `docs`, `web_ui` の URL 一覧）
 - **http://127.0.0.1:8000/docs** … Swagger UI（API ドキュメント）
-- **http://127.0.0.1:8000/app/** … Web UI（プロジェクト一覧・ボード表示・ブロッカー一覧）
+- **http://127.0.0.1:8000/app/** … Web UI（プロジェクト・タスクの一覧・作成・編集・移動・完了、依存の追加・解除、ブロッカー一覧）
 
 | エンドポイント | 説明 |
 |----------------|------|
@@ -193,7 +193,7 @@ uvicorn taskul.api.app:app --host 127.0.0.1 --port 8000
 1. **操作の充実（CLI/API）** — CLI と HTTP API は完了。
 2. **状態の可視化（board / gantt / blockers）** — データ取得（get-board, get-gantt, list-blockers）は完了。表示は Phase 4 の UI で。
 3. **ルールと整合性（依存・制約・履歴）** — 依存・制約・履歴の共通化（events.py）と参照（get-events, GET /events）は完了。
-4. **UI（Web / TUI）** — Web UI の表示は完了。プロジェクト・タスクの追加・変更などの操作拡張は未着手（方針は [REPO_STRUCTURE.md](REPO_STRUCTURE.md) の「4.1.2 Web UI 操作拡張」を参照）。TUI は未着手。
+4. **UI（Web / TUI）** — Web UI の表示・操作（プロジェクト・タスクの作成・編集・移動・完了、依存の追加・解除）は完了。TUI は未着手。
 
 詳細は [REPO_STRUCTURE.md](REPO_STRUCTURE.md) の「今後の拡張」を参照。
 
