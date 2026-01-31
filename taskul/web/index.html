@@ -26,11 +26,18 @@
     <section id="view-board" class="view hidden">
       <div class="board-toolbar">
         <button type="button" id="btn-back" class="btn-back">← 一覧へ</button>
+        <button type="button" id="btn-gantt" class="btn-blockers">ガント</button>
         <button type="button" id="btn-blockers" class="btn-blockers">ブロッカー一覧</button>
         <button type="button" id="btn-new-task" class="btn-primary">タスク追加</button>
         <button type="button" id="btn-add-dependency" class="btn-back">依存を追加</button>
       </div>
       <div id="board-lanes" class="board-lanes"></div>
+    </section>
+    <section id="view-gantt" class="view hidden">
+      <div class="board-toolbar">
+        <button type="button" id="btn-back-gantt" class="btn-back">← ボードへ</button>
+      </div>
+      <div id="gantt-container" class="gantt-container"></div>
     </section>
     <section id="view-blockers" class="view hidden">
       <div class="board-toolbar">

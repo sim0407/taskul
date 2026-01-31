@@ -172,7 +172,8 @@ main { padding: 1rem; max-width: 1600px; margin: 0 auto; }
   border-radius: 4px;
 }
 .card-actions button:hover, .card-actions select:hover { border-color: var(--accent); }
-.card-actions .btn-done { color: #9ece6a; }
+.card-actions .btn-arrow { min-width: 1.8em; }
+.card-actions .btn-move-right { color: #9ece6a; }
 
 .toast {
   position: fixed;
@@ -243,3 +244,67 @@ main { padding: 1rem; max-width: 1600px; margin: 0 auto; }
 .form-actions .btn-cancel { background: var(--lane-bg); color: var(--text); border: 1px solid var(--card-border); }
 .form-actions .btn-submit:hover, .form-actions .btn-cancel:hover { opacity: 0.9; }
 .form-error { color: #f7768e; font-size: 0.85rem; margin-top: 0.25rem; }
+
+.gantt-container {
+  overflow-x: auto;
+  margin-top: 0.5rem;
+}
+.gantt-header {
+  display: flex;
+  align-items: stretch;
+  min-width: 600px;
+  padding: 0.4rem 0;
+  border-bottom: 1px solid var(--card-border);
+  margin-bottom: 0.25rem;
+}
+.gantt-label-head {
+  flex-shrink: 0;
+  width: 220px;
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+.gantt-weeks {
+  flex: 1;
+  display: flex;
+  min-width: 0;
+}
+.gantt-week {
+  flex: 1;
+  min-width: 4rem;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+.gantt-row {
+  display: flex;
+  align-items: center;
+  min-width: 600px;
+  padding: 0.35rem 0;
+  border-bottom: 1px solid rgba(59, 66, 97, 0.5);
+  font-size: 0.9rem;
+}
+.gantt-row .gantt-label {
+  flex-shrink: 0;
+  width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+}
+.gantt-bar-wrap {
+  flex: 1;
+  position: relative;
+  height: 1.5rem;
+  min-width: 0;
+  background: var(--lane-bg);
+  border-radius: 4px;
+}
+.gantt-bar {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  min-width: 4px;
+  background: var(--accent);
+  border-radius: 3px;
+  pointer-events: none;
+}

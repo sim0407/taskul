@@ -5,9 +5,11 @@
   const $ = (id) => document.getElementById(id);
   const viewProjects = $('view-projects');
   const viewBoard = $('view-board');
+  const viewGantt = $('view-gantt');
   const viewBlockers = $('view-blockers');
   const projectList = $('project-list');
   const boardLanes = $('board-lanes');
+  const ganttContainer = $('gantt-container');
   const boardTitle = $('board-title');
   const blockersList = $('blockers-list');
   const toastEl = $('toast');
@@ -21,7 +23,7 @@
   let lastBoard = null;
 
   function showView(view) {
-    [viewProjects, viewBoard, viewBlockers].forEach(el => el.classList.add('hidden'));
+    [viewProjects, viewBoard, viewGantt, viewBlockers].forEach(el => el.classList.add('hidden'));
     view.classList.remove('hidden');
   }
 
@@ -289,15 +291,8 @@
       const cards = tasks.map(t => renderCard(t, status));
       return `<div class="lane ${status}" data-status="${escapeAttr(status)}"><div class="lane-title">${escapeHtml(status)}</div><div class="lane-cards">${cards.join('')}</div></div>`;
     }).join('');
-    boardLanes.querySelectorAll('.btn-card-done').forEach(btn => {
-      btn.addEventListener('click', () => markDone(btn.dataset.taskId));
-    });
-    boardLanes.querySelectorAll('.card-move-select').forEach(sel => {
-      sel.addEventListener('change', (e) => {
-        const taskId = e.target.dataset.taskId;
-        const status = e.target.value;
-        if (status) moveTask(taskId, status, 'bottom');
-      });
+    boardLanes.querySelectorAll('.btn-move-left, .btn-move-right').forEach(btn => {
+      btn.addEventListener('click', () => moveTask(btn.dataset.taskId, btn.dataset.status, 'bottom'));
     });
     boardLanes.querySelectorAll('.btn-card-edit').forEach(btn => {
       btn.addEventListener('click', () => openEditTaskModal(btn.dataset.taskId));
@@ -305,12 +300,15 @@
   }
 
   function renderCard(t, currentStatus) {
-    const moveOpts = STATUSES.filter(s => s !== currentStatus).map(s => `<option value="${s}">→ ${s}</option>`).join('');
-    const canDone = currentStatus !== 'Done';
+    const idx = STATUSES.indexOf(currentStatus);
+    const hasPrev = idx > 0;
+    const hasNext = idx < STATUSES.length - 1;
+    const prevStatus = hasPrev ? STATUSES[idx - 1] : null;
+    const nextStatus = hasNext ? STATUSES[idx + 1] : null;
     const actions = `
       <div class="card-actions">
-        ${canDone ? `<button type="button" class="btn-card-done btn-done" data-task-id="${escapeAttr(t.id)}">完了</button>` : ''}
-        <select class="card-move-select" data-task-id="${escapeAttr(t.id)}"><option value="">移動</option>${moveOpts}</select>
+        ${hasPrev ? `<button type="button" class="btn-move-left btn-arrow" data-task-id="${escapeAttr(t.id)}" data-status="${escapeAttr(prevStatus)}" title="${escapeAttr(prevStatus)}へ">←</button>` : ''}
+        ${hasNext ? `<button type="button" class="btn-move-right btn-arrow" data-task-id="${escapeAttr(t.id)}" data-status="${escapeAttr(nextStatus)}" title="${escapeAttr(nextStatus)}へ">→</button>` : ''}
         <button type="button" class="btn-card-edit" data-task-id="${escapeAttr(t.id)}">編集</button>
       </div>
     `;
@@ -437,6 +435,63 @@
     showView(viewBoard);
   }
 
+  function parseDate(s) {
+    if (!s) return null;
+    const d = new Date(s + 'T00:00:00');
+    return isNaN(d.getTime()) ? null : d;
+  }
+
+  async function showGantt() {
+    if (!currentProjectId) return;
+    showView(viewGantt);
+    ganttContainer.innerHTML = '<div class="loading">読み込み中…</div>';
+    try {
+      const today = new Date();
+      const from = new Date(today);
+      from.setDate(from.getDate() - 14);
+      const to = new Date(today);
+      to.setDate(to.getDate() + 70);
+      const fromStr = from.toISOString().slice(0, 10);
+      const toStr = to.toISOString().slice(0, 10);
+      const tasks = await fetchJSON('/projects/' + encodeURIComponent(currentProjectId) + '/gantt?from_date=' + fromStr + '&to_date=' + toStr);
+      renderGantt(tasks, fromStr, toStr);
+    } catch (e) {
+      ganttContainer.innerHTML = '<div class="error">読み込み失敗: ' + escapeHtml(e.message) + '</div>';
+    }
+  }
+
+  function renderGantt(tasks, rangeFrom, rangeTo) {
+    if (tasks.length === 0) {
+      ganttContainer.innerHTML = '<p class="hint">この期間にタスクがありません。タスクに開始日・期限を設定するとガントで表示されます。</p>';
+      return;
+    }
+    const rangeStart = parseDate(rangeFrom).getTime();
+    const rangeEnd = parseDate(rangeTo).getTime();
+    const rangeDays = (rangeEnd - rangeStart) / (24 * 60 * 60 * 1000) || 1;
+    const dayWidth = 100 / rangeDays;
+    const rows = tasks.map(t => {
+      const start = parseDate(t.start_date) || parseDate(t.due_date) || new Date();
+      const end = parseDate(t.due_date) || parseDate(t.start_date) || new Date(start.getTime() + 24 * 60 * 60 * 1000);
+      const startMs = start.getTime();
+      const endMs = end.getTime();
+      let leftPct = ((startMs - rangeStart) / (24 * 60 * 60 * 1000)) * dayWidth;
+      let widthPct = ((endMs - startMs) / (24 * 60 * 60 * 1000)) * dayWidth;
+      if (widthPct < 1) widthPct = 1;
+      if (leftPct < 0) { widthPct += leftPct; leftPct = 0; }
+      if (leftPct + widthPct > 100) widthPct = 100 - leftPct;
+      const label = escapeHtml(t.id) + ' ' + escapeHtml(t.title || '');
+      return `<div class="gantt-row"><div class="gantt-label" title="${escapeAttr(t.id)}">${label}</div><div class="gantt-bar-wrap"><div class="gantt-bar" style="left:${leftPct}%;width:${widthPct}%" title="${escapeAttr((t.start_date || '') + ' ～ ' + (t.due_date || ''))}"></div></div></div>`;
+    });
+    const weeks = [];
+    let d = new Date(parseDate(rangeFrom).getTime());
+    const endD = parseDate(rangeTo);
+    while (d <= endD) {
+      weeks.push('<span class="gantt-week">' + d.toISOString().slice(0, 10) + '</span>');
+      d = new Date(d.getTime() + 7 * 24 * 60 * 60 * 1000);
+    }
+    ganttContainer.innerHTML = '<div class="gantt-header"><div class="gantt-label gantt-label-head">タスク</div><div class="gantt-weeks">' + weeks.join('') + '</div></div>' + rows.join('');
+  }
+
   async function removeDependency(fromTaskId, toTaskId) {
     try {
       await fetchDELETE('/dependencies?from_task_id=' + encodeURIComponent(fromTaskId) + '&to_task_id=' + encodeURIComponent(toTaskId));
@@ -464,6 +519,8 @@
   $('btn-new-project').addEventListener('click', openNewProjectModal);
   $('btn-new-task').addEventListener('click', openNewTaskModal);
   $('btn-add-dependency').addEventListener('click', openAddDependencyModal);
+  $('btn-gantt').addEventListener('click', showGantt);
+  $('btn-back-gantt').addEventListener('click', backToBoard);
   $('btn-blockers').addEventListener('click', showBlockers);
   $('btn-back-blockers').addEventListener('click', backToBoard);
 
