@@ -76,14 +76,6 @@ def update_task_impl(
             raise ValueError(f"status must be one of {STATUSES}")
         updates.append("status = ?")
         params.append(status)
-        # Move to new lane: assign new rank at bottom of new status
-        cur = conn.execute(
-            "SELECT COALESCE(MAX(rank), -1) + 1 AS next_rank FROM tasks WHERE project_id = ? AND status = ?",
-            (task["project_id"], status),
-        )
-        new_rank = cur.fetchone()[0]
-        updates.append("rank = ?")
-        params.append(new_rank)
 
     if not updates:
         return task
@@ -99,12 +91,6 @@ def update_task_impl(
         row = cur.fetchone()
         if row is not None:
             set_task_depth_and_cascade(conn, task_id, row["depth"])
-    # After moving task to new lane, remove gap in old lane (only when status changed)
-    if status is not None:
-        conn.execute(
-            "UPDATE tasks SET rank = rank - 1 WHERE project_id = ? AND status = ? AND rank > ?",
-            (task["project_id"], task["status"], task["rank"]),
-        )
     record_event(conn, "human", "TASK_UPDATED", {"task_id": task_id})
     conn.commit()
 

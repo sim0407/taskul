@@ -40,9 +40,18 @@ def ensure_schema(conn: sqlite3.Connection) -> None:
         conn.commit()
     # Migration: task.depth (hierarchy level from root)
     cur = conn.execute("PRAGMA table_info(tasks)")
-    has_depth = any(row[1] == "depth" for row in cur.fetchall())
+    columns = [row[1] for row in cur.fetchall()]
+    has_depth = "depth" in columns
     if not has_depth and _MIGRATIONS_DIR.joinpath("002_task_depth.sql").exists():
         migration_sql = _MIGRATIONS_DIR.joinpath("002_task_depth.sql").read_text(encoding="utf-8")
+        conn.executescript(migration_sql)
+        conn.commit()
+    # Migration: remove rank column (order by dates instead)
+    cur = conn.execute("PRAGMA table_info(tasks)")
+    columns = [row[1] for row in cur.fetchall()]
+    has_rank = "rank" in columns
+    if has_rank and _MIGRATIONS_DIR.joinpath("003_remove_rank.sql").exists():
+        migration_sql = _MIGRATIONS_DIR.joinpath("003_remove_rank.sql").read_text(encoding="utf-8")
         conn.executescript(migration_sql)
         conn.commit()
 
@@ -200,23 +209,23 @@ def row_to_task(row) -> dict:
     """Convert a tasks table row to a task dict (for JSON / API)."""
     if row is None:
         return None
+    keys = row.keys()
     out = {
         "id": row["id"],
         "project_id": row["project_id"],
         "title": row["title"],
         "description": row["description"] or None,
         "status": row["status"],
-        "rank": row["rank"],
         "start_date": row["start_date"] or None,
         "due_date": row["due_date"] or None,
         "estimate_hours": row["estimate_hours"] if row["estimate_hours"] is not None else None,
         "created_at": row["created_at"],
     }
-    if "milestone_id" in row.keys():
+    if "milestone_id" in keys:
         out["milestone_id"] = row["milestone_id"] or None
-    if "parent_task_id" in row.keys():
+    if "parent_task_id" in keys:
         out["parent_task_id"] = row["parent_task_id"] or None
-    if "depth" in row.keys():
+    if "depth" in keys:
         out["depth"] = row["depth"] if row["depth"] is not None else 0
     return out
 
@@ -230,7 +239,7 @@ def get_task(conn: sqlite3.Connection, task_id: str) -> dict | None:
 
 def get_board(conn: sqlite3.Connection, project_id: str) -> dict | None:
     """
-    Get Kanban board: lanes by status with tasks ordered by rank.
+    Get Kanban board: lanes by status with tasks ordered by start_date, due_date, created_at.
     Returns None if project does not exist.
     """
     cur = conn.execute("SELECT id FROM projects WHERE id = ?", (project_id,))
@@ -240,7 +249,8 @@ def get_board(conn: sqlite3.Connection, project_id: str) -> dict | None:
     lanes = {}
     for status in statuses:
         cur = conn.execute(
-            "SELECT * FROM tasks WHERE project_id = ? AND status = ? ORDER BY rank",
+            """SELECT * FROM tasks WHERE project_id = ? AND status = ?
+               ORDER BY start_date NULLS LAST, due_date NULLS LAST, created_at""",
             (project_id, status),
         )
         lanes[status] = [row_to_task(row) for row in cur.fetchall()]
@@ -286,13 +296,13 @@ def list_blockers(conn: sqlite3.Connection, project_id: str) -> list:
         return None
     cur = conn.execute(
         """
-        SELECT t.id, t.project_id, t.title, t.status, t.rank,
+        SELECT t.id, t.project_id, t.title, t.status,
                d.from_task_id
         FROM tasks t
         JOIN dependencies d ON d.to_task_id = t.id
         JOIN tasks f ON f.id = d.from_task_id
         WHERE t.project_id = ? AND f.status != 'Done'
-        ORDER BY t.rank
+        ORDER BY t.start_date NULLS LAST, t.due_date NULLS LAST, t.created_at
         """,
         (project_id,),
     )
@@ -307,7 +317,6 @@ def list_blockers(conn: sqlite3.Connection, project_id: str) -> list:
                 "project_id": row["project_id"],
                 "title": row["title"],
                 "status": row["status"],
-                "rank": row["rank"],
                 "blocked_by": [],
             }
         by_id[tid]["blocked_by"].append(row["from_task_id"])

@@ -95,14 +95,13 @@ def move_task(
     body: dict,
     conn: sqlite3.Connection = Depends(get_db),
 ):
-    """Move a task to a status lane. Body: { \"status\": \"Todo\", \"position\": \"top\" | \"bottom\" | \"after:T-xxxxxx\" (optional, default bottom) }."""
+    """Move a task to a status lane. Body: { \"status\": \"Todo\" }."""
     status = body.get("status")
     if not status:
         raise HTTPException(status_code=400, detail="status is required")
-    position = body.get("position", "bottom")
     from ...commands.move_task import move_task_impl
     try:
-        return move_task_impl(conn, task_id, status, position)
+        return move_task_impl(conn, task_id, status)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 

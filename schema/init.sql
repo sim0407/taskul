@@ -19,22 +19,20 @@ CREATE TABLE IF NOT EXISTS milestones (
 
 CREATE INDEX IF NOT EXISTS idx_milestones_project ON milestones(project_id);
 
--- Tasks (status lane + rank unique per project+status; optional milestone, optional parent for subtasks)
+-- Tasks (status lane; optional milestone, optional parent for subtasks; ordered by dates)
 CREATE TABLE IF NOT EXISTS tasks (
   id TEXT PRIMARY KEY,
   project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
   title TEXT NOT NULL,
   description TEXT,
   status TEXT NOT NULL CHECK (status IN ('Backlog', 'Todo', 'Doing', 'Review', 'Done')),
-  rank INTEGER NOT NULL,
   start_date TEXT,
   due_date TEXT,
   estimate_hours REAL,
   milestone_id TEXT REFERENCES milestones(id) ON DELETE SET NULL,
   parent_task_id TEXT REFERENCES tasks(id) ON DELETE SET NULL,
   depth INTEGER NOT NULL DEFAULT 0,
-  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-  UNIQUE(project_id, status, rank)
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
 
 CREATE INDEX IF NOT EXISTS idx_tasks_project_status ON tasks(project_id, status);

@@ -416,7 +416,7 @@
       return `<div class="lane ${status}" data-status="${escapeAttr(status)}"><div class="lane-title">${escapeHtml(status)}</div><div class="lane-cards">${cards.join('')}</div></div>`;
     }).join('');
     boardLanes.querySelectorAll('.btn-move-left, .btn-move-right').forEach(btn => {
-      btn.addEventListener('click', () => moveTask(btn.dataset.taskId, btn.dataset.status, 'bottom'));
+      btn.addEventListener('click', () => moveTask(btn.dataset.taskId, btn.dataset.status));
     });
     boardLanes.querySelectorAll('.btn-add-subtask').forEach(btn => {
       btn.addEventListener('click', () => openAddSubtaskModal(btn.dataset.taskId, btn.dataset.taskTitle || '', btn.dataset.taskStatus || ''));
@@ -425,7 +425,7 @@
       btn.addEventListener('click', () => openEditTaskModal(btn.dataset.taskId));
     });
 
-    // ドラッグ&ドロップ
+    // ドラッグ&ドロップ（ステータス変更のみ）
     boardLanes.querySelectorAll('.card').forEach(card => {
       card.addEventListener('dragstart', (e) => {
         e.dataTransfer.setData('text/plain', card.dataset.taskId);
@@ -434,7 +434,6 @@
       card.addEventListener('dragend', () => {
         card.classList.remove('dragging');
         boardLanes.querySelectorAll('.lane-cards').forEach(lc => lc.classList.remove('drag-over'));
-        boardLanes.querySelectorAll('.card').forEach(c => c.classList.remove('drop-target'));
       });
     });
 
@@ -442,51 +441,22 @@
       laneCards.addEventListener('dragover', (e) => {
         e.preventDefault();
         laneCards.classList.add('drag-over');
-        const afterCard = getDragAfterElement(laneCards, e.clientY);
-        laneCards.querySelectorAll('.card').forEach(c => c.classList.remove('drop-target'));
-        if (afterCard) {
-          afterCard.classList.add('drop-target');
-        }
       });
       laneCards.addEventListener('dragleave', (e) => {
         if (!laneCards.contains(e.relatedTarget)) {
           laneCards.classList.remove('drag-over');
-          laneCards.querySelectorAll('.card').forEach(c => c.classList.remove('drop-target'));
         }
       });
       laneCards.addEventListener('drop', async (e) => {
         e.preventDefault();
         laneCards.classList.remove('drag-over');
-        laneCards.querySelectorAll('.card').forEach(c => c.classList.remove('drop-target'));
         const taskId = e.dataTransfer.getData('text/plain');
         if (!taskId) return;
         const lane = laneCards.closest('.lane');
         const status = lane.dataset.status;
-        const afterCard = getDragAfterElement(laneCards, e.clientY);
-        let position = 'bottom';
-        if (afterCard) {
-          position = 'after:' + afterCard.dataset.taskId;
-        } else {
-          const cards = [...laneCards.querySelectorAll('.card')];
-          if (cards.length === 0 || e.clientY < cards[0].getBoundingClientRect().top + cards[0].offsetHeight / 2) {
-            position = 'top';
-          }
-        }
-        await moveTask(taskId, status, position);
+        await moveTask(taskId, status);
       });
     });
-  }
-
-  function getDragAfterElement(container, y) {
-    const cards = [...container.querySelectorAll('.card:not(.dragging)')];
-    return cards.reduce((closest, card) => {
-      const box = card.getBoundingClientRect();
-      const offset = y - box.top - box.height / 2;
-      if (offset < 0 && offset > closest.offset) {
-        return { offset, element: card };
-      }
-      return closest;
-    }, { offset: Number.NEGATIVE_INFINITY }).element || null;
   }
 
   function renderBoard(board) {
@@ -521,9 +491,9 @@
     }
   }
 
-  async function moveTask(taskId, status, position) {
+  async function moveTask(taskId, status) {
     try {
-      await fetchPOST('/tasks/' + encodeURIComponent(taskId) + '/move', { status, position: position || 'bottom' });
+      await fetchPOST('/tasks/' + encodeURIComponent(taskId) + '/move', { status });
       showToast('タスクを移動しました');
       refreshBoard();
     } catch (e) {

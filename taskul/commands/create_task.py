@@ -57,19 +57,13 @@ def create_task_impl(
         if m["project_id"] != project_id:
             raise ValueError("milestone must belong to the same project")
 
-    cur = conn.execute(
-        "SELECT COALESCE(MAX(rank), -1) + 1 AS next_rank FROM tasks WHERE project_id = ? AND status = ?",
-        (project_id, status),
-    )
-    rank = cur.fetchone()[0]
-
     task_id = next_id(conn, "T")
     conn.execute(
         """
-        INSERT INTO tasks (id, project_id, title, description, status, rank, start_date, due_date, estimate_hours, milestone_id, parent_task_id, depth)
-        VALUES (?, ?, ?, NULL, ?, ?, ?, ?, NULL, ?, ?, ?)
+        INSERT INTO tasks (id, project_id, title, description, status, start_date, due_date, estimate_hours, milestone_id, parent_task_id, depth)
+        VALUES (?, ?, ?, NULL, ?, ?, ?, NULL, ?, ?, ?)
         """,
-        (task_id, project_id, title, status, rank, start_date, due_date, milestone_id, parent_task_id, depth),
+        (task_id, project_id, title, status, start_date, due_date, milestone_id, parent_task_id, depth),
     )
     record_event(conn, "human", "TASK_CREATED", {"task_id": task_id, "project_id": project_id, "title": title, "status": status})
     conn.commit()
