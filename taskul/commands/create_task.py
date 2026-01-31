@@ -1,7 +1,7 @@
 """create_task(project_id, title, status=Backlog) - MVP command."""
 import json
 import click
-from ..db import get_connection, ensure_schema, next_id, row_to_task, get_milestone, get_task
+from ..db import get_connection, ensure_schema, next_id, row_to_task, get_milestone, get_task, recalc_parent_status
 from ..events import record_event
 STATUSES = ("Backlog", "Todo", "Doing", "Review", "Done")
 
@@ -66,6 +66,11 @@ def create_task_impl(
         (task_id, project_id, title, status, start_date, due_date, milestone_id, parent_task_id, depth),
     )
     record_event(conn, "human", "TASK_CREATED", {"task_id": task_id, "project_id": project_id, "title": title, "status": status})
+
+    # Recalculate parent status if this is a subtask
+    if parent_task_id:
+        recalc_parent_status(conn, parent_task_id)
+
     conn.commit()
 
     cur = conn.execute("SELECT * FROM tasks WHERE id = ?", (task_id,))

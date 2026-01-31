@@ -135,7 +135,19 @@ main { padding: 1rem; max-width: 1600px; margin: 0 auto; }
 }
 .card:last-child { margin-bottom: 0; }
 .card[draggable="true"] { cursor: grab; }
+.card[draggable="false"] { cursor: default; }
 .card.dragging { opacity: 0.5; cursor: grabbing; }
+.card-parent { border-left: 3px solid var(--accent); }
+.card-parent-badge {
+  display: inline-block;
+  font-size: 0.65rem;
+  padding: 0.1rem 0.3rem;
+  background: var(--accent);
+  color: var(--bg);
+  border-radius: 3px;
+  margin-left: 0.3rem;
+  vertical-align: middle;
+}
 .lane-cards.drag-over { background: rgba(122, 162, 247, 0.1); }
 .card-id { color: var(--muted); font-size: 0.75rem; margin-bottom: 0.2rem; }
 .card-title { font-weight: 500; }
@@ -265,6 +277,7 @@ main { padding: 1rem; max-width: 1600px; margin: 0 auto; }
 .form-actions .btn-cancel { background: var(--lane-bg); color: var(--text); border: 1px solid var(--card-border); }
 .form-actions .btn-submit:hover, .form-actions .btn-cancel:hover { opacity: 0.9; }
 .form-error { color: #f7768e; font-size: 0.85rem; margin-top: 0.25rem; }
+.form-hint { color: var(--muted); font-size: 0.8rem; font-weight: normal; }
 
 .gantt-toolbar {
   flex-wrap: wrap;

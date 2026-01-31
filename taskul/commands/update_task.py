@@ -1,7 +1,7 @@
 """update_task(task_id, fields...) - MVP command."""
 import json
 import click
-from ..db import get_connection, ensure_schema, get_task, get_milestone, row_to_task, set_task_depth_and_cascade
+from ..db import get_connection, ensure_schema, get_task, get_milestone, row_to_task, set_task_depth_and_cascade, recalc_parent_status
 from ..events import record_event
 from ..cycle_check import would_create_parent_cycle
 
@@ -26,6 +26,8 @@ def update_task_impl(
     task = get_task(conn, task_id)
     if task is None:
         raise ValueError(f"task not found: {task_id}")
+
+    old_parent_task_id = task.get("parent_task_id")
 
     updates = []
     params = []
@@ -74,6 +76,10 @@ def update_task_impl(
     if status is not None:
         if status not in STATUSES:
             raise ValueError(f"status must be one of {STATUSES}")
+        # Check if task has children - if so, status is auto-calculated
+        cur = conn.execute("SELECT COUNT(*) as cnt FROM tasks WHERE parent_task_id = ?", (task_id,))
+        if cur.fetchone()["cnt"] > 0:
+            raise ValueError("子タスクを持つタスクのステータスは自動計算されるため、直接変更できません")
         updates.append("status = ?")
         params.append(status)
 
@@ -91,7 +97,23 @@ def update_task_impl(
         row = cur.fetchone()
         if row is not None:
             set_task_depth_and_cascade(conn, task_id, row["depth"])
+
     record_event(conn, "human", "TASK_UPDATED", {"task_id": task_id})
+
+    # Recalculate parent status (bottom-up)
+    # Get the current parent after update
+    cur = conn.execute("SELECT parent_task_id FROM tasks WHERE id = ?", (task_id,))
+    row = cur.fetchone()
+    new_parent_task_id = row["parent_task_id"] if row else None
+
+    # If parent changed, recalculate old parent
+    if parent_task_id is not _UNSET and old_parent_task_id and old_parent_task_id != new_parent_task_id:
+        recalc_parent_status(conn, old_parent_task_id)
+
+    # Recalculate current parent if status changed or parent changed
+    if (status is not None or parent_task_id is not _UNSET) and new_parent_task_id:
+        recalc_parent_status(conn, new_parent_task_id)
+
     conn.commit()
 
     cur = conn.execute("SELECT * FROM tasks WHERE id = ?", (task_id,))

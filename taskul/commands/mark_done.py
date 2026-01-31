@@ -1,7 +1,7 @@
 """mark_done(task_id) - MVP command. Shortcut for update_task(..., status=Done)."""
 import json
 import click
-from ..db import get_connection, ensure_schema, get_task, row_to_task
+from ..db import get_connection, ensure_schema, get_task, row_to_task, recalc_parent_status
 from ..events import record_event
 
 
@@ -9,23 +9,26 @@ def mark_done_impl(conn, task_id: str) -> dict:
     task = get_task(conn, task_id)
     if task is None:
         raise ValueError(f"task not found: {task_id}")
-    # New rank at bottom of Done lane
-    cur = conn.execute(
-        "SELECT COALESCE(MAX(rank), -1) + 1 FROM tasks WHERE project_id = ? AND status = ?",
-        (task["project_id"], "Done"),
-    )
-    new_rank = cur.fetchone()[0]
-    # First move task to Done to avoid UNIQUE violation in old lane
+
+    if task["status"] == "Done":
+        return task  # Already done
+
+    # Check if task has children - if so, status is auto-calculated
+    cur = conn.execute("SELECT COUNT(*) as cnt FROM tasks WHERE parent_task_id = ?", (task_id,))
+    if cur.fetchone()["cnt"] > 0:
+        raise ValueError("子タスクを持つタスクのステータスは自動計算されるため、直接変更できません")
+
     conn.execute(
-        "UPDATE tasks SET status = ?, rank = ? WHERE id = ?",
-        ("Done", new_rank, task_id),
-    )
-    # Then decrement ranks of tasks that were after this one in the old lane
-    conn.execute(
-        "UPDATE tasks SET rank = rank - 1 WHERE project_id = ? AND status = ? AND rank > ?",
-        (task["project_id"], task["status"], task["rank"]),
+        "UPDATE tasks SET status = ? WHERE id = ?",
+        ("Done", task_id),
     )
     record_event(conn, "human", "TASK_UPDATED", {"task_id": task_id, "status": "Done"})
+
+    # Recalculate parent status (bottom-up)
+    parent_task_id = task.get("parent_task_id")
+    if parent_task_id:
+        recalc_parent_status(conn, parent_task_id)
+
     conn.commit()
     cur = conn.execute("SELECT * FROM tasks WHERE id = ?", (task_id,))
     return row_to_task(cur.fetchone())

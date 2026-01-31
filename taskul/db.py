@@ -329,6 +329,97 @@ def get_all_dependencies(conn: sqlite3.Connection) -> list[tuple[str, str]]:
     return [(row["from_task_id"], row["to_task_id"]) for row in cur.fetchall()]
 
 
+def recalc_parent_status(conn: sqlite3.Connection, parent_task_id: str) -> None:
+    """
+    Recalculate parent task's status based on children (bottom-up).
+    Rules:
+    - All children Backlog → Parent Backlog
+    - All children Done → Parent Done
+    - Otherwise (mixed) → Parent Doing
+    If parent has no children, status is unchanged.
+    Recursively updates ancestors.
+    """
+    if not parent_task_id:
+        return
+
+    # Get all direct children
+    cur = conn.execute("SELECT status FROM tasks WHERE parent_task_id = ?", (parent_task_id,))
+    children = cur.fetchall()
+
+    if not children:
+        # No children, don't change parent status
+        return
+
+    statuses = [row["status"] for row in children]
+    all_backlog = all(s == "Backlog" for s in statuses)
+    all_done = all(s == "Done" for s in statuses)
+
+    if all_backlog:
+        new_status = "Backlog"
+    elif all_done:
+        new_status = "Done"
+    else:
+        new_status = "Doing"
+
+    # Get current parent status
+    cur = conn.execute("SELECT status, parent_task_id FROM tasks WHERE id = ?", (parent_task_id,))
+    row = cur.fetchone()
+    if row is None:
+        return
+
+    old_status = row["status"]
+    grandparent_id = row["parent_task_id"]
+
+    # Update if changed
+    if old_status != new_status:
+        conn.execute("UPDATE tasks SET status = ? WHERE id = ?", (new_status, parent_task_id))
+        # Recursively update grandparent
+        if grandparent_id:
+            recalc_parent_status(conn, grandparent_id)
+
+
+def get_project_delete_check(conn: sqlite3.Connection, project_id: str) -> dict | None:
+    """Check what would be deleted if this project is deleted. Returns None if project not found."""
+    cur = conn.execute("SELECT id FROM projects WHERE id = ?", (project_id,))
+    if cur.fetchone() is None:
+        return None
+    cur = conn.execute("SELECT COUNT(*) as cnt FROM tasks WHERE project_id = ?", (project_id,))
+    task_count = cur.fetchone()["cnt"]
+    cur = conn.execute("SELECT COUNT(*) as cnt FROM milestones WHERE project_id = ?", (project_id,))
+    milestone_count = cur.fetchone()["cnt"]
+    return {"task_count": task_count, "milestone_count": milestone_count}
+
+
+def get_milestone_delete_check(conn: sqlite3.Connection, milestone_id: str) -> dict | None:
+    """Check what would be affected if this milestone is deleted. Returns None if milestone not found."""
+    cur = conn.execute("SELECT id FROM milestones WHERE id = ?", (milestone_id,))
+    if cur.fetchone() is None:
+        return None
+    cur = conn.execute("SELECT COUNT(*) as cnt FROM tasks WHERE milestone_id = ?", (milestone_id,))
+    task_count = cur.fetchone()["cnt"]
+    return {"task_count": task_count}
+
+
+def get_task_delete_check(conn: sqlite3.Connection, task_id: str) -> dict | None:
+    """Check what would be affected if this task is deleted. Returns None if task not found."""
+    cur = conn.execute("SELECT id FROM tasks WHERE id = ?", (task_id,))
+    if cur.fetchone() is None:
+        return None
+    # Count direct children
+    cur = conn.execute("SELECT COUNT(*) as cnt FROM tasks WHERE parent_task_id = ?", (task_id,))
+    child_count = cur.fetchone()["cnt"]
+    # Count all descendants recursively
+    def count_descendants(tid: str) -> int:
+        cur = conn.execute("SELECT id FROM tasks WHERE parent_task_id = ?", (tid,))
+        children = [row["id"] for row in cur.fetchall()]
+        total = len(children)
+        for child_id in children:
+            total += count_descendants(child_id)
+        return total
+    descendant_count = count_descendants(task_id)
+    return {"child_count": child_count, "descendant_count": descendant_count}
+
+
 def get_events(
     conn: sqlite3.Connection,
     limit: int = 100,

@@ -4,21 +4,9 @@ import sqlite3
 from fastapi import APIRouter, Depends, HTTPException
 
 from ..deps import get_db
-from ...db import get_task
+from ...db import get_task, get_task_delete_check
 
 router = APIRouter()
-
-
-@router.get("/{task_id}")
-def get_task_by_id(
-    task_id: str,
-    conn: sqlite3.Connection = Depends(get_db),
-):
-    """Get a single task."""
-    task = get_task(conn, task_id)
-    if task is None:
-        raise HTTPException(status_code=404, detail="task not found")
-    return task
 
 
 @router.post("")
@@ -117,3 +105,40 @@ def mark_task_done(
         return mark_done_impl(conn, task_id)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/{task_id}/delete-check")
+def check_task_delete(
+    task_id: str,
+    conn: sqlite3.Connection = Depends(get_db),
+):
+    """Check what would be affected if this task is deleted."""
+    result = get_task_delete_check(conn, task_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="task not found")
+    return result
+
+
+@router.get("/{task_id}")
+def get_task_by_id(
+    task_id: str,
+    conn: sqlite3.Connection = Depends(get_db),
+):
+    """Get a single task."""
+    task = get_task(conn, task_id)
+    if task is None:
+        raise HTTPException(status_code=404, detail="task not found")
+    return task
+
+
+@router.delete("/{task_id}")
+def delete_task(
+    task_id: str,
+    conn: sqlite3.Connection = Depends(get_db),
+):
+    """Delete a task."""
+    from ...commands.delete_task import delete_task_impl
+    try:
+        return delete_task_impl(conn, task_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))

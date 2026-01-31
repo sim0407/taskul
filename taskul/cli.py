@@ -18,6 +18,9 @@ from .commands.mark_done import mark_done
 from .commands.seed import seed
 from .commands.serve import serve
 from .commands.import_tasks import import_tasks
+from .commands.delete_task import delete_task
+from .commands.delete_milestone import delete_milestone
+from .commands.delete_project import delete_project
 
 
 @click.group()
@@ -46,6 +49,9 @@ cli.add_command(mark_done)
 cli.add_command(seed)
 cli.add_command(serve)
 cli.add_command(import_tasks)
+cli.add_command(delete_task)
+cli.add_command(delete_milestone)
+cli.add_command(delete_project)
 
 
 def main():

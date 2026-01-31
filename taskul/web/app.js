@@ -120,12 +120,18 @@
         return;
       }
       projectList.innerHTML = projects.map(p =>
-        `<li><a href="#" data-project-id="${p.id}" data-project-name="${escapeAttr(p.name)}">${escapeHtml(p.name)} (${p.id})</a></li>`
+        `<li><a href="#" data-project-id="${p.id}" data-project-name="${escapeAttr(p.name)}">${escapeHtml(p.name)} (${p.id})</a> <button type="button" class="btn-delete-project" data-project-id="${escapeAttr(p.id)}" data-project-name="${escapeAttr(p.name)}">削除</button></li>`
       ).join('');
       projectList.querySelectorAll('a').forEach(a => {
         a.addEventListener('click', (e) => {
           e.preventDefault();
           openBoard(a.dataset.projectId, a.dataset.projectName);
+        });
+      });
+      projectList.querySelectorAll('.btn-delete-project').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          deleteProject(btn.dataset.projectId, btn.dataset.projectName);
         });
       });
     } catch (e) {
@@ -276,10 +282,24 @@
     });
   }
 
-  function openAddSubtaskModal(parentTaskId, parentTaskTitle, parentStatus) {
+  async function openAddSubtaskModal(parentTaskId, parentTaskTitle, parentStatus) {
     if (!currentProjectId) return;
-    const defaultStatus = parentStatus || 'Backlog';
+    // Fetch parent task to get default values
+    let parentTask = null;
+    try {
+      parentTask = await fetchJSON('/tasks/' + encodeURIComponent(parentTaskId));
+    } catch (e) {
+      // Ignore, use provided values
+    }
+    const defaultStatus = parentTask?.status || parentStatus || 'Backlog';
+    const defaultMilestoneId = parentTask?.milestone_id || '';
+    const defaultStartDate = parentTask?.start_date || '';
+    const defaultDueDate = parentTask?.due_date || '';
+
     const statusOpts = STATUSES.map(s => `<option value="${s}" ${s === defaultStatus ? 'selected' : ''}>${s}</option>`).join('');
+    const milestoneOpts = '<option value="">(なし / 親タスクから継承)</option>' +
+      lastBoardMilestones.map(m => `<option value="${escapeAttr(m.id)}" ${m.id === defaultMilestoneId ? 'selected' : ''}>${escapeHtml(m.id + ' ' + (m.title || ''))}</option>`).join('');
+
     const parentLabel = escapeHtml(parentTaskId + (parentTaskTitle ? ' ' + parentTaskTitle : ''));
     showModal('子タスクを追加: ' + parentLabel, `
       <form id="form-add-subtask" class="form">
@@ -290,6 +310,22 @@
         <div class="form-group">
           <label for="subtask-status">ステータス</label>
           <select id="subtask-status" name="status">${statusOpts}</select>
+        </div>
+        <div class="form-group">
+          <label for="subtask-milestone">マイルストーン</label>
+          <select id="subtask-milestone" name="milestone_id">${milestoneOpts}</select>
+        </div>
+        <div class="form-group">
+          <label for="subtask-start-date">開始日 (YYYY-MM-DD)</label>
+          <input type="text" id="subtask-start-date" name="start_date" value="${escapeAttr(defaultStartDate)}" placeholder="YYYY-MM-DD（空欄で親から継承）">
+        </div>
+        <div class="form-group">
+          <label for="subtask-due-date">期限 (YYYY-MM-DD)</label>
+          <input type="text" id="subtask-due-date" name="due_date" value="${escapeAttr(defaultDueDate)}" placeholder="YYYY-MM-DD（空欄で親から継承）">
+        </div>
+        <div class="form-group">
+          <label for="subtask-estimate-hours">見積もり (時間)</label>
+          <input type="number" id="subtask-estimate-hours" name="estimate_hours" step="0.5" placeholder="数値">
         </div>
         <div id="form-add-subtask-error" class="form-error hidden"></div>
         <div class="form-actions">
@@ -306,13 +342,23 @@
       const title = form.querySelector('#subtask-title').value.trim();
       if (!title) { errEl.textContent = 'タイトルを入力してください'; errEl.classList.remove('hidden'); return; }
       errEl.classList.add('hidden');
+      const milestoneVal = form.querySelector('#subtask-milestone').value;
+      const startDateVal = form.querySelector('#subtask-start-date').value.trim();
+      const dueDateVal = form.querySelector('#subtask-due-date').value.trim();
+      const estimateVal = form.querySelector('#subtask-estimate-hours').value.trim();
+      const body = {
+        project_id: currentProjectId,
+        title,
+        status: form.querySelector('#subtask-status').value,
+        parent_task_id: parentTaskId,
+      };
+      // Only send values if explicitly provided (otherwise inherit from parent)
+      if (milestoneVal) body.milestone_id = milestoneVal;
+      if (startDateVal) body.start_date = startDateVal;
+      if (dueDateVal) body.due_date = dueDateVal;
+      if (estimateVal) body.estimate_hours = parseFloat(estimateVal);
       try {
-        await fetchPOST('/tasks', {
-          project_id: currentProjectId,
-          title,
-          status: form.querySelector('#subtask-status').value,
-          parent_task_id: parentTaskId,
-        });
+        await fetchPOST('/tasks', body);
         showToast('子タスクを追加しました');
         closeModal();
         refreshBoard();
@@ -464,21 +510,30 @@
     renderBoardWithFilters();
   }
 
+  function taskHasChildren(taskId) {
+    if (!lastBoard) return false;
+    const allTasks = STATUSES.flatMap(s => (lastBoard.lanes[s] || []));
+    return allTasks.some(t => t.parent_task_id === taskId);
+  }
+
   function renderCard(t, currentStatus) {
     const idx = STATUSES.indexOf(currentStatus);
     const hasPrev = idx > 0;
     const hasNext = idx < STATUSES.length - 1;
     const prevStatus = hasPrev ? STATUSES[idx - 1] : null;
     const nextStatus = hasNext ? STATUSES[idx + 1] : null;
+    const hasChildren = taskHasChildren(t.id);
+    const draggable = hasChildren ? 'false' : 'true';
+    const parentBadge = hasChildren ? '<span class="card-parent-badge" title="ステータスは子タスクから自動計算">親</span>' : '';
     const actions = `
       <div class="card-actions">
-        ${hasPrev ? `<button type="button" class="btn-move-left btn-arrow" data-task-id="${escapeAttr(t.id)}" data-status="${escapeAttr(prevStatus)}" title="${escapeAttr(prevStatus)}へ">←</button>` : ''}
-        ${hasNext ? `<button type="button" class="btn-move-right btn-arrow" data-task-id="${escapeAttr(t.id)}" data-status="${escapeAttr(nextStatus)}" title="${escapeAttr(nextStatus)}へ">→</button>` : ''}
+        ${hasPrev && !hasChildren ? `<button type="button" class="btn-move-left btn-arrow" data-task-id="${escapeAttr(t.id)}" data-status="${escapeAttr(prevStatus)}" title="${escapeAttr(prevStatus)}へ">←</button>` : ''}
+        ${hasNext && !hasChildren ? `<button type="button" class="btn-move-right btn-arrow" data-task-id="${escapeAttr(t.id)}" data-status="${escapeAttr(nextStatus)}" title="${escapeAttr(nextStatus)}へ">→</button>` : ''}
         <button type="button" class="btn-add-subtask" data-task-id="${escapeAttr(t.id)}" data-task-title="${escapeAttr(t.title || '')}" data-task-status="${escapeAttr(currentStatus)}" title="子タスクを追加">+子タスク</button>
         <button type="button" class="btn-card-edit" data-task-id="${escapeAttr(t.id)}">編集</button>
       </div>
     `;
-    return `<div class="card" data-task-id="${escapeAttr(t.id)}" draggable="true"><div class="card-id">${escapeHtml(t.id)}</div><div class="card-title">${escapeHtml(t.title)}</div>${actions}</div>`;
+    return `<div class="card${hasChildren ? ' card-parent' : ''}" data-task-id="${escapeAttr(t.id)}" draggable="${draggable}"><div class="card-id">${escapeHtml(t.id)}${parentBadge}</div><div class="card-title">${escapeHtml(t.title)}</div>${actions}</div>`;
   }
 
   async function markDone(taskId) {
@@ -510,6 +565,10 @@
         showToast(e.message, true);
         return;
       }
+
+      // Check if task has children (status is auto-calculated)
+      const hasChildren = taskHasChildren(taskId);
+
       const statusOpts = STATUSES.map(s => `<option value="${s}" ${s === task.status ? 'selected' : ''}>${s}</option>`).join('');
 
       // マイルストーン選択肢
@@ -532,6 +591,9 @@
         allTasks.filter(t => t.id !== taskId && !descendants.has(t.id))
           .map(t => `<option value="${escapeAttr(t.id)}" ${t.id === task.parent_task_id ? 'selected' : ''}>${escapeHtml(t.id + ' ' + (t.title || ''))}</option>`).join('');
 
+      const statusDisabled = hasChildren ? 'disabled' : '';
+      const statusHint = hasChildren ? '<span class="form-hint">（子タスクから自動計算）</span>' : '';
+
       showModal('タスク編集', `
         <form id="form-edit-task" class="form">
           <div class="form-group">
@@ -543,8 +605,8 @@
             <textarea id="edit-description" name="description" rows="2">${escapeAttr(task.description || '')}</textarea>
           </div>
           <div class="form-group">
-            <label for="edit-status">ステータス</label>
-            <select id="edit-status" name="status">${statusOpts}</select>
+            <label for="edit-status">ステータス ${statusHint}</label>
+            <select id="edit-status" name="status" ${statusDisabled}>${statusOpts}</select>
           </div>
           <div class="form-group">
             <label for="edit-milestone">マイルストーン</label>
@@ -569,6 +631,8 @@
           <div id="form-edit-task-error" class="form-error hidden"></div>
           <div class="form-actions">
             <button type="button" class="btn-cancel" data-dismiss="modal">キャンセル</button>
+            ${hasChildren ? '' : '<button type="button" class="btn-mark-done" data-task-id="' + escapeAttr(taskId) + '">完了にする</button>'}
+            <button type="button" class="btn-delete-task" data-task-id="${escapeAttr(taskId)}">削除</button>
             <button type="submit" class="btn-submit">保存</button>
           </div>
         </form>
@@ -576,6 +640,37 @@
       const form = modalBody.querySelector('#form-edit-task');
       const errEl = modalBody.querySelector('#form-edit-task-error');
       form.querySelector('[data-dismiss="modal"]').addEventListener('click', closeModal);
+      const markDoneBtn = form.querySelector('.btn-mark-done');
+      if (markDoneBtn) {
+        markDoneBtn.addEventListener('click', async () => {
+          try {
+            await fetchPOST('/tasks/' + encodeURIComponent(taskId) + '/mark-done', {});
+            showToast('タスクを完了にしました');
+            closeModal();
+            refreshBoard();
+          } catch (e) {
+            errEl.textContent = e.message;
+            errEl.classList.remove('hidden');
+          }
+        });
+      }
+      form.querySelector('.btn-delete-task').addEventListener('click', async () => {
+        try {
+          const check = await fetchJSON('/tasks/' + encodeURIComponent(taskId) + '/delete-check');
+          let msg = 'このタスクを削除しますか？';
+          if (check.descendant_count > 0) {
+            msg = `このタスクには ${check.descendant_count} 件の子タスクがあります。\n子タスクもすべて削除されますが、削除しますか？`;
+          }
+          if (!confirm(msg)) return;
+          await fetchDELETE('/tasks/' + encodeURIComponent(taskId));
+          showToast('タスクを削除しました');
+          closeModal();
+          refreshBoard();
+        } catch (e) {
+          errEl.textContent = e.message;
+          errEl.classList.remove('hidden');
+        }
+      });
       form.addEventListener('submit', async (e) => {
         e.preventDefault();
         errEl.classList.add('hidden');
@@ -783,6 +878,257 @@
     }
   }
 
+  // Milestone management modal
+  async function openMilestonesModal() {
+    if (!currentProjectId) return;
+    let milestones;
+    try {
+      milestones = await fetchJSON('/projects/' + encodeURIComponent(currentProjectId) + '/milestones');
+    } catch (e) {
+      showToast(e.message, true);
+      return;
+    }
+    const rows = milestones.length === 0
+      ? '<p class="hint">マイルストーンがありません。</p>'
+      : milestones.map(m => `
+        <div class="milestone-row" data-milestone-id="${escapeAttr(m.id)}">
+          <span class="milestone-id">${escapeHtml(m.id)}</span>
+          <span class="milestone-title">${escapeHtml(m.title || '')}</span>
+          <span class="milestone-dates">${escapeHtml(m.start_date || '')} ～ ${escapeHtml(m.due_date || '')}</span>
+          <button type="button" class="btn-edit-milestone" data-milestone-id="${escapeAttr(m.id)}">編集</button>
+          <button type="button" class="btn-delete-milestone" data-milestone-id="${escapeAttr(m.id)}">削除</button>
+        </div>
+      `).join('');
+    showModal('マイルストーン管理', `
+      <div id="milestones-list">${rows}</div>
+      <hr>
+      <h4>新規マイルストーン</h4>
+      <form id="form-new-milestone" class="form">
+        <div class="form-group">
+          <label for="ms-title">タイトル</label>
+          <input type="text" id="ms-title" name="title" required placeholder="マイルストーン名">
+        </div>
+        <div class="form-group">
+          <label for="ms-start-date">開始日</label>
+          <input type="text" id="ms-start-date" name="start_date" required placeholder="YYYY-MM-DD">
+        </div>
+        <div class="form-group">
+          <label for="ms-due-date">期限</label>
+          <input type="text" id="ms-due-date" name="due_date" required placeholder="YYYY-MM-DD">
+        </div>
+        <div id="form-new-milestone-error" class="form-error hidden"></div>
+        <div class="form-actions">
+          <button type="button" class="btn-cancel" data-dismiss="modal">閉じる</button>
+          <button type="submit" class="btn-submit">追加</button>
+        </div>
+      </form>
+    `);
+    modalBody.querySelector('[data-dismiss="modal"]').addEventListener('click', closeModal);
+    modalBody.querySelectorAll('.btn-edit-milestone').forEach(btn => {
+      btn.addEventListener('click', () => openEditMilestoneModal(btn.dataset.milestoneId));
+    });
+    modalBody.querySelectorAll('.btn-delete-milestone').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const milestoneId = btn.dataset.milestoneId;
+        try {
+          const check = await fetchJSON('/milestones/' + encodeURIComponent(milestoneId) + '/delete-check');
+          let msg = 'このマイルストーンを削除しますか？';
+          if (check.task_count > 0) {
+            msg += '\n\n※ このマイルストーンを参照しているタスクが ' + check.task_count + ' 件あります。\nこれらのタスクのマイルストーン参照は解除されます。';
+          }
+          if (!confirm(msg)) return;
+          await fetchDELETE('/milestones/' + encodeURIComponent(milestoneId));
+          showToast('マイルストーンを削除しました');
+          openMilestonesModal();
+          refreshBoard();
+        } catch (e) {
+          showToast(e.message, true);
+        }
+      });
+    });
+    const form = modalBody.querySelector('#form-new-milestone');
+    const errEl = modalBody.querySelector('#form-new-milestone-error');
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      errEl.classList.add('hidden');
+      const title = form.querySelector('#ms-title').value.trim();
+      const start_date = form.querySelector('#ms-start-date').value.trim();
+      const due_date = form.querySelector('#ms-due-date').value.trim();
+      if (!title || !start_date || !due_date) {
+        errEl.textContent = 'すべての項目を入力してください';
+        errEl.classList.remove('hidden');
+        return;
+      }
+      try {
+        await fetchPOST('/projects/' + encodeURIComponent(currentProjectId) + '/milestones', { title, start_date, due_date });
+        showToast('マイルストーンを追加しました');
+        openMilestonesModal();
+        refreshBoard();
+      } catch (err) {
+        errEl.textContent = err.message;
+        errEl.classList.remove('hidden');
+      }
+    });
+  }
+
+  async function openEditMilestoneModal(milestoneId) {
+    let m;
+    try {
+      m = await fetchJSON('/milestones/' + encodeURIComponent(milestoneId));
+    } catch (e) {
+      showToast(e.message, true);
+      return;
+    }
+    showModal('マイルストーン編集', `
+      <form id="form-edit-milestone" class="form">
+        <div class="form-group">
+          <label for="edit-ms-title">タイトル</label>
+          <input type="text" id="edit-ms-title" name="title" value="${escapeAttr(m.title || '')}" required>
+        </div>
+        <div class="form-group">
+          <label for="edit-ms-start-date">開始日</label>
+          <input type="text" id="edit-ms-start-date" name="start_date" value="${escapeAttr(m.start_date || '')}" required placeholder="YYYY-MM-DD">
+        </div>
+        <div class="form-group">
+          <label for="edit-ms-due-date">期限</label>
+          <input type="text" id="edit-ms-due-date" name="due_date" value="${escapeAttr(m.due_date || '')}" required placeholder="YYYY-MM-DD">
+        </div>
+        <div id="form-edit-milestone-error" class="form-error hidden"></div>
+        <div class="form-actions">
+          <button type="button" class="btn-cancel" data-back="milestones">← 戻る</button>
+          <button type="submit" class="btn-submit">保存</button>
+        </div>
+      </form>
+    `);
+    const form = modalBody.querySelector('#form-edit-milestone');
+    const errEl = modalBody.querySelector('#form-edit-milestone-error');
+    form.querySelector('[data-back="milestones"]').addEventListener('click', () => openMilestonesModal());
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      errEl.classList.add('hidden');
+      const body = {
+        title: form.querySelector('#edit-ms-title').value.trim(),
+        start_date: form.querySelector('#edit-ms-start-date').value.trim(),
+        due_date: form.querySelector('#edit-ms-due-date').value.trim(),
+      };
+      try {
+        await fetchPATCH('/milestones/' + encodeURIComponent(milestoneId), body);
+        showToast('マイルストーンを更新しました');
+        openMilestonesModal();
+        refreshBoard();
+      } catch (err) {
+        errEl.textContent = err.message;
+        errEl.classList.remove('hidden');
+      }
+    });
+  }
+
+  // Event history modal
+  async function openEventsModal() {
+    if (!currentProjectId) return;
+    let events;
+    try {
+      events = await fetchJSON('/events?project_id=' + encodeURIComponent(currentProjectId));
+    } catch (e) {
+      showToast(e.message, true);
+      return;
+    }
+    const rows = events.length === 0
+      ? '<p class="hint">イベントがありません。</p>'
+      : events.map(ev => `
+        <div class="event-row">
+          <span class="event-time">${escapeHtml(ev.timestamp || '')}</span>
+          <span class="event-actor">${escapeHtml(ev.actor || '')}</span>
+          <span class="event-type">${escapeHtml(ev.event_type || '')}</span>
+          <span class="event-payload">${escapeHtml(JSON.stringify(ev.payload || {}))}</span>
+        </div>
+      `).join('');
+    showModal('イベント履歴', `
+      <div id="events-list" class="events-list">${rows}</div>
+      <div class="form-actions">
+        <button type="button" class="btn-cancel" data-dismiss="modal">閉じる</button>
+      </div>
+    `);
+    modalBody.querySelector('[data-dismiss="modal"]').addEventListener('click', closeModal);
+  }
+
+  // Import tasks modal
+  function openImportModal() {
+    if (!currentProjectId) return;
+    showModal('タスクをインポート', `
+      <form id="form-import" class="form">
+        <p class="hint">CSV, Excel (.xlsx), または XML ファイルからタスクをインポートします。</p>
+        <div class="form-group">
+          <label for="import-file">ファイル</label>
+          <input type="file" id="import-file" name="file" accept=".csv,.xlsx,.xml" required>
+        </div>
+        <div id="form-import-error" class="form-error hidden"></div>
+        <div id="form-import-result" class="form-success hidden"></div>
+        <div class="form-actions">
+          <button type="button" class="btn-cancel" data-dismiss="modal">キャンセル</button>
+          <button type="submit" class="btn-submit">インポート</button>
+        </div>
+      </form>
+    `);
+    const form = modalBody.querySelector('#form-import');
+    const errEl = modalBody.querySelector('#form-import-error');
+    const resultEl = modalBody.querySelector('#form-import-result');
+    form.querySelector('[data-dismiss="modal"]').addEventListener('click', closeModal);
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      errEl.classList.add('hidden');
+      resultEl.classList.add('hidden');
+      const fileInput = form.querySelector('#import-file');
+      if (!fileInput.files || fileInput.files.length === 0) {
+        errEl.textContent = 'ファイルを選択してください';
+        errEl.classList.remove('hidden');
+        return;
+      }
+      const file = fileInput.files[0];
+      const formData = new FormData();
+      formData.append('file', file);
+      try {
+        const r = await fetch(API + '/projects/' + encodeURIComponent(currentProjectId) + '/import', {
+          method: 'POST',
+          body: formData,
+        });
+        if (!r.ok) {
+          const err = await r.json().catch(() => ({}));
+          throw new Error(err.detail || r.status + ' ' + r.statusText);
+        }
+        const result = await r.json();
+        const count = result.imported_count || 0;
+        resultEl.textContent = count + ' 件のタスクをインポートしました。';
+        resultEl.classList.remove('hidden');
+        showToast(count + ' 件のタスクをインポートしました');
+        refreshBoard();
+      } catch (err) {
+        errEl.textContent = err.message;
+        errEl.classList.remove('hidden');
+      }
+    });
+  }
+
+  // Delete project
+  async function deleteProject(projectId, projectName) {
+    try {
+      const check = await fetchJSON('/projects/' + encodeURIComponent(projectId) + '/delete-check');
+      let msg = 'プロジェクト「' + projectName + '」を削除しますか？';
+      if (check.task_count > 0 || check.milestone_count > 0) {
+        const parts = [];
+        if (check.task_count > 0) parts.push(check.task_count + ' 件のタスク');
+        if (check.milestone_count > 0) parts.push(check.milestone_count + ' 件のマイルストーン');
+        msg += '\n\n※ このプロジェクトには ' + parts.join('と') + ' があります。\nこれらもすべて削除されますが、よろしいですか？';
+      }
+      if (!confirm(msg)) return;
+      await fetchDELETE('/projects/' + encodeURIComponent(projectId));
+      showToast('プロジェクトを削除しました');
+      loadProjects();
+    } catch (e) {
+      showToast(e.message, true);
+    }
+  }
+
   $('btn-projects').addEventListener('click', () => {
     setBoardTitle('');
     currentProjectId = null;
@@ -804,6 +1150,10 @@
   $('board-filter-milestone').addEventListener('change', renderBoardWithFilters);
   $('board-filter-parent').addEventListener('change', renderBoardWithFilters);
   $('board-filter-depth').addEventListener('change', renderBoardWithFilters);
+
+  $('btn-milestones').addEventListener('click', openMilestonesModal);
+  $('btn-events').addEventListener('click', openEventsModal);
+  $('btn-import').addEventListener('click', openImportModal);
 
   $('btn-gantt').addEventListener('click', showGantt);
   $('btn-back-gantt').addEventListener('click', backToBoard);

@@ -1,10 +1,12 @@
 """Projects API routes."""
 import sqlite3
+import tempfile
+from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 
 from ..deps import get_db
-from ...db import get_projects, get_project, get_board, get_gantt, list_blockers, get_milestones
+from ...db import get_projects, get_project, get_board, get_gantt, list_blockers, get_milestones, get_project_delete_check
 
 router = APIRouter()
 
@@ -28,16 +30,16 @@ def create_project(
     return create_project_impl(conn, name)
 
 
-@router.get("/{project_id}")
-def get_project_by_id(
+@router.get("/{project_id}/delete-check")
+def check_project_delete(
     project_id: str,
     conn: sqlite3.Connection = Depends(get_db),
 ):
-    """Get a single project."""
-    project = get_project(conn, project_id)
-    if project is None:
+    """Check what would be deleted if this project is deleted."""
+    result = get_project_delete_check(conn, project_id)
+    if result is None:
         raise HTTPException(status_code=404, detail="project not found")
-    return project
+    return result
 
 
 @router.get("/{project_id}/board")
@@ -107,3 +109,58 @@ def create_milestone(
         return create_milestone_impl(conn, project_id, title, start_date, due_date)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/{project_id}/import")
+def import_tasks(
+    project_id: str,
+    file: UploadFile = File(...),
+    conn: sqlite3.Connection = Depends(get_db),
+):
+    """Import tasks from CSV/Excel/XML file. Supported: .csv, .xlsx, .xml"""
+    from ...commands.import_tasks import import_tasks_impl
+
+    # Check file extension
+    filename = file.filename or ""
+    ext = Path(filename).suffix.lower()
+    if ext not in (".csv", ".xlsx", ".xml"):
+        raise HTTPException(status_code=400, detail=f"Unsupported file type: {ext}. Use .csv, .xlsx, or .xml")
+
+    # Save to temp file
+    with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp:
+        content = file.file.read()
+        tmp.write(content)
+        tmp_path = tmp.name
+
+    try:
+        result = import_tasks_impl(conn, project_id, tmp_path)
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    finally:
+        Path(tmp_path).unlink(missing_ok=True)
+
+
+@router.get("/{project_id}")
+def get_project_by_id(
+    project_id: str,
+    conn: sqlite3.Connection = Depends(get_db),
+):
+    """Get a single project."""
+    project = get_project(conn, project_id)
+    if project is None:
+        raise HTTPException(status_code=404, detail="project not found")
+    return project
+
+
+@router.delete("/{project_id}")
+def delete_project(
+    project_id: str,
+    conn: sqlite3.Connection = Depends(get_db),
+):
+    """Delete a project and all its tasks/milestones."""
+    from ...commands.delete_project import delete_project_impl
+    try:
+        return delete_project_impl(conn, project_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
