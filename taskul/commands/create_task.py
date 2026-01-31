@@ -27,12 +27,14 @@ def create_task_impl(
         if m["project_id"] != project_id:
             raise ValueError("milestone must belong to the same project")
 
+    depth = 0
     if parent_task_id:
         parent = get_task(conn, parent_task_id)
         if parent is None:
             raise ValueError(f"parent task not found: {parent_task_id}")
         if parent["project_id"] != project_id:
             raise ValueError("parent task must belong to the same project")
+        depth = parent.get("depth", 0) + 1
 
     cur = conn.execute(
         "SELECT COALESCE(MAX(rank), -1) + 1 AS next_rank FROM tasks WHERE project_id = ? AND status = ?",
@@ -43,10 +45,10 @@ def create_task_impl(
     task_id = next_id(conn, "T")
     conn.execute(
         """
-        INSERT INTO tasks (id, project_id, title, description, status, rank, start_date, due_date, estimate_hours, milestone_id, parent_task_id)
-        VALUES (?, ?, ?, NULL, ?, ?, NULL, NULL, NULL, ?, ?)
+        INSERT INTO tasks (id, project_id, title, description, status, rank, start_date, due_date, estimate_hours, milestone_id, parent_task_id, depth)
+        VALUES (?, ?, ?, NULL, ?, ?, NULL, NULL, NULL, ?, ?, ?)
         """,
-        (task_id, project_id, title, status, rank, milestone_id, parent_task_id),
+        (task_id, project_id, title, status, rank, milestone_id, parent_task_id, depth),
     )
     record_event(conn, "human", "TASK_CREATED", {"task_id": task_id, "project_id": project_id, "title": title, "status": status})
     conn.commit()

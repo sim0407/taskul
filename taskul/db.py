@@ -38,6 +38,13 @@ def ensure_schema(conn: sqlite3.Connection) -> None:
         migration_sql = _MIGRATIONS_DIR.joinpath("001_milestone_subtask.sql").read_text(encoding="utf-8")
         conn.executescript(migration_sql)
         conn.commit()
+    # Migration: task.depth (hierarchy level from root)
+    cur = conn.execute("PRAGMA table_info(tasks)")
+    has_depth = any(row[1] == "depth" for row in cur.fetchall())
+    if not has_depth and _MIGRATIONS_DIR.joinpath("002_task_depth.sql").exists():
+        migration_sql = _MIGRATIONS_DIR.joinpath("002_task_depth.sql").read_text(encoding="utf-8")
+        conn.executescript(migration_sql)
+        conn.commit()
 
 
 def next_id(conn: sqlite3.Connection, prefix: str) -> str:
@@ -163,6 +170,14 @@ def update_milestone(
     return row_to_milestone(cur.fetchone())
 
 
+def set_task_depth_and_cascade(conn: sqlite3.Connection, task_id: str, new_depth: int) -> None:
+    """Set task's depth and recursively update all descendants. Caller must commit."""
+    conn.execute("UPDATE tasks SET depth = ? WHERE id = ?", (new_depth, task_id))
+    cur = conn.execute("SELECT id FROM tasks WHERE parent_task_id = ?", (task_id,))
+    for row in cur.fetchall():
+        set_task_depth_and_cascade(conn, row["id"], new_depth + 1)
+
+
 def get_task_parent_chain(conn: sqlite3.Connection, task_id: str) -> list[str]:
     """Return list of ancestor task ids (task_id's parent, grandparent, ...). Empty if no parent."""
     out = []
@@ -201,6 +216,8 @@ def row_to_task(row) -> dict:
         out["milestone_id"] = row["milestone_id"] or None
     if "parent_task_id" in row.keys():
         out["parent_task_id"] = row["parent_task_id"] or None
+    if "depth" in row.keys():
+        out["depth"] = row["depth"] if row["depth"] is not None else 0
     return out
 
 

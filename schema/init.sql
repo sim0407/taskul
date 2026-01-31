@@ -32,6 +32,7 @@ CREATE TABLE IF NOT EXISTS tasks (
   estimate_hours REAL,
   milestone_id TEXT REFERENCES milestones(id) ON DELETE SET NULL,
   parent_task_id TEXT REFERENCES tasks(id) ON DELETE SET NULL,
+  depth INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
   UNIQUE(project_id, status, rank)
 );

@@ -28,6 +28,7 @@ Agent-friendly: all operations are possible via CLI and HTTP API, with JSON outp
 - estimate_hours: number (optional)
 - milestone_id: string (optional) — タスクはマイルストーンを**1つまで**持てる
 - parent_task_id: string (optional) — 親タスク。1つまで持てる（サブタスクはこの関係で表現）
+- depth: integer — root（親を持たない）から数えた段数。root=0、その子=1、孫=2 …
 
 ### Dependency
 - from_task_id blocks to_task_id

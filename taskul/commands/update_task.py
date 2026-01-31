@@ -1,7 +1,7 @@
 """update_task(task_id, fields...) - MVP command."""
 import json
 import click
-from ..db import get_connection, ensure_schema, get_task, get_milestone, row_to_task
+from ..db import get_connection, ensure_schema, get_task, get_milestone, row_to_task, set_task_depth_and_cascade
 from ..events import record_event
 from ..cycle_check import would_create_parent_cycle
 
@@ -56,6 +56,7 @@ def update_task_impl(
         params.append(milestone_id if milestone_id else None)
 
     if parent_task_id is not _UNSET:
+        new_depth = 0
         if parent_task_id:
             parent = get_task(conn, parent_task_id)
             if parent is None:
@@ -64,8 +65,11 @@ def update_task_impl(
                 raise ValueError("parent task must belong to the same project")
             if would_create_parent_cycle(conn, task_id, parent_task_id):
                 raise ValueError("would create cycle in parent chain")
+            new_depth = parent.get("depth", 0) + 1
         updates.append("parent_task_id = ?")
         params.append(parent_task_id if parent_task_id else None)
+        updates.append("depth = ?")
+        params.append(new_depth)
 
     if status is not None:
         if status not in STATUSES:
@@ -89,6 +93,12 @@ def update_task_impl(
         "UPDATE tasks SET " + ", ".join(updates) + " WHERE id = ?",
         params,
     )
+    # When parent changed, cascade depth to all descendants
+    if parent_task_id is not _UNSET:
+        cur = conn.execute("SELECT depth FROM tasks WHERE id = ?", (task_id,))
+        row = cur.fetchone()
+        if row is not None:
+            set_task_depth_and_cascade(conn, task_id, row["depth"])
     # After moving task to new lane, remove gap in old lane (only when status changed)
     if status is not None:
         conn.execute(
