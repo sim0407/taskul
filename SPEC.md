@@ -54,3 +54,11 @@ Agent-friendly: all operations are possible via CLI and HTTP API, with JSON outp
 ## Non-Goals (for now)
 - Multi-user, auth, cloud sync
 - Complex gantt editing UI
+
+## Roadmap (development order)
+1. 操作の充実（CLI/API）
+2. 状態の可視化（board / gantt / blockers）
+3. ルールと整合性（依存・制約・履歴）
+4. UI（Web / TUI）
+
+進捗・詳細は REPO_STRUCTURE.md の「今後の拡張」を参照。

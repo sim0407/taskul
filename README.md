@@ -75,6 +75,41 @@ python -m taskul create-task P-0001 "作業中" --status Doing --json-output
 
 利用可能なステータス: `Backlog`, `Todo`, `Doing`, `Review`, `Done`
 
+### 読み取り（Phase 1）
+
+```bash
+# ボード取得（ステータス別レーン＋タスク順）
+python -m taskul get-board P-0001 [--json-output]
+
+# Gantt 用データ（期間指定可）
+python -m taskul get-gantt P-0001 [--from YYYY-MM-DD] [--to YYYY-MM-DD] [--json-output]
+
+# 単一タスク取得
+python -m taskul get-task T-000001 [--json-output]
+
+# ブロックされているタスク一覧
+python -m taskul list-blockers P-0001 [--json-output]
+```
+
+### 更新・移動・依存（Phase 1）
+
+```bash
+# タスク更新（指定した項目のみ更新）
+python -m taskul update-task T-000001 --title "新タイトル" --status Todo [--json-output]
+
+# タスク移動（top / bottom / after:T-xxxxxx）
+python -m taskul move-task T-000001 Todo --position top [--json-output]
+
+# 依存追加（サイクルになる場合は拒否）
+python -m taskul add-dependency T-000001 T-000002 [--json-output]
+
+# 依存削除
+python -m taskul remove-dependency T-000001 T-000002 [--json-output]
+
+# 完了にする
+python -m taskul mark-done T-000001 [--json-output]
+```
+
 ## 環境変数・オプション
 
 | 項目 | 説明 |
@@ -88,11 +123,14 @@ python -m taskul create-task P-0001 "作業中" --status Doing --json-output
 - [SPEC.md](SPEC.md) … エンティティ（Project / Task / Dependency / Event）、MVP クエリ・コマンド、制約
 - [REPO_STRUCTURE.md](REPO_STRUCTURE.md) … ディレクトリ方針、Git 管理、今後の拡張案
 
-## 今後の拡張（予定）
+## 今後の拡張（4 段階）
 
-- 読み取り: `get_board`, `get_gantt`, `get_task`, `list_blockers`
-- 書き込み: `update_task`, `move_task`, `add_dependency`, `remove_dependency`, `mark_done`
-- HTTP API（FastAPI 等）、サイクル検出、イベント共通処理など
+1. **操作の充実（CLI/API）** — CLI は完了。HTTP API は未着手。
+2. **状態の可視化（board / gantt / blockers）** — データ取得（get-board, get-gantt, list-blockers）は完了。表示は Phase 4 の UI で。
+3. **ルールと整合性（依存・制約・履歴）** — 依存のサイクル検出・制約は完了。履歴の共通化（events.py）・履歴参照は未着手。
+4. **UI（Web / TUI）** — 未着手。
+
+詳細は [REPO_STRUCTURE.md](REPO_STRUCTURE.md) の「今後の拡張」を参照。
 
 ## ライセンス
 

@@ -1,24 +1,9 @@
 """create_task(project_id, title, status=Backlog) - MVP command."""
 import json
 import click
-from ..db import get_connection, ensure_schema, next_id
+from ..db import get_connection, ensure_schema, next_id, row_to_task
 
 STATUSES = ("Backlog", "Todo", "Doing", "Review", "Done")
-
-
-def _row_to_task(row) -> dict:
-    return {
-        "id": row["id"],
-        "project_id": row["project_id"],
-        "title": row["title"],
-        "description": row["description"] or None,
-        "status": row["status"],
-        "rank": row["rank"],
-        "start_date": row["start_date"] or None,
-        "due_date": row["due_date"] or None,
-        "estimate_hours": row["estimate_hours"] if row["estimate_hours"] is not None else None,
-        "created_at": row["created_at"],
-    }
 
 
 def create_task_impl(conn, project_id: str, title: str, status: str = "Backlog") -> dict:
@@ -50,7 +35,7 @@ def create_task_impl(conn, project_id: str, title: str, status: str = "Backlog")
     conn.commit()
 
     cur = conn.execute("SELECT * FROM tasks WHERE id = ?", (task_id,))
-    return _row_to_task(cur.fetchone())
+    return row_to_task(cur.fetchone())
 
 
 @click.command("create-task")
