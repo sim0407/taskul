@@ -276,6 +276,53 @@
     });
   }
 
+  function openAddSubtaskModal(parentTaskId, parentTaskTitle, parentStatus) {
+    if (!currentProjectId) return;
+    const defaultStatus = parentStatus || 'Backlog';
+    const statusOpts = STATUSES.map(s => `<option value="${s}" ${s === defaultStatus ? 'selected' : ''}>${s}</option>`).join('');
+    const parentLabel = escapeHtml(parentTaskId + (parentTaskTitle ? ' ' + parentTaskTitle : ''));
+    showModal('子タスクを追加: ' + parentLabel, `
+      <form id="form-add-subtask" class="form">
+        <div class="form-group">
+          <label for="subtask-title">タイトル</label>
+          <input type="text" id="subtask-title" name="title" required placeholder="子タスクのタイトル">
+        </div>
+        <div class="form-group">
+          <label for="subtask-status">ステータス</label>
+          <select id="subtask-status" name="status">${statusOpts}</select>
+        </div>
+        <div id="form-add-subtask-error" class="form-error hidden"></div>
+        <div class="form-actions">
+          <button type="button" class="btn-cancel" data-dismiss="modal">キャンセル</button>
+          <button type="submit" class="btn-submit">追加</button>
+        </div>
+      </form>
+    `);
+    const form = modalBody.querySelector('#form-add-subtask');
+    const errEl = modalBody.querySelector('#form-add-subtask-error');
+    form.querySelector('[data-dismiss="modal"]').addEventListener('click', closeModal);
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const title = form.querySelector('#subtask-title').value.trim();
+      if (!title) { errEl.textContent = 'タイトルを入力してください'; errEl.classList.remove('hidden'); return; }
+      errEl.classList.add('hidden');
+      try {
+        await fetchPOST('/tasks', {
+          project_id: currentProjectId,
+          title,
+          status: form.querySelector('#subtask-status').value,
+          parent_task_id: parentTaskId,
+        });
+        showToast('子タスクを追加しました');
+        closeModal();
+        refreshBoard();
+      } catch (err) {
+        errEl.textContent = err.message;
+        errEl.classList.remove('hidden');
+      }
+    });
+  }
+
   function applyTaskFilters(tasks, milestoneId, parentValue) {
     return tasks.filter(t => {
       if (milestoneId && (t.milestone_id || '') !== milestoneId) return false;
@@ -359,6 +406,9 @@
     boardLanes.querySelectorAll('.btn-move-left, .btn-move-right').forEach(btn => {
       btn.addEventListener('click', () => moveTask(btn.dataset.taskId, btn.dataset.status, 'bottom'));
     });
+    boardLanes.querySelectorAll('.btn-add-subtask').forEach(btn => {
+      btn.addEventListener('click', () => openAddSubtaskModal(btn.dataset.taskId, btn.dataset.taskTitle || '', btn.dataset.taskStatus || ''));
+    });
     boardLanes.querySelectorAll('.btn-card-edit').forEach(btn => {
       btn.addEventListener('click', () => openEditTaskModal(btn.dataset.taskId));
     });
@@ -379,6 +429,7 @@
       <div class="card-actions">
         ${hasPrev ? `<button type="button" class="btn-move-left btn-arrow" data-task-id="${escapeAttr(t.id)}" data-status="${escapeAttr(prevStatus)}" title="${escapeAttr(prevStatus)}へ">←</button>` : ''}
         ${hasNext ? `<button type="button" class="btn-move-right btn-arrow" data-task-id="${escapeAttr(t.id)}" data-status="${escapeAttr(nextStatus)}" title="${escapeAttr(nextStatus)}へ">→</button>` : ''}
+        <button type="button" class="btn-add-subtask" data-task-id="${escapeAttr(t.id)}" data-task-title="${escapeAttr(t.title || '')}" data-task-status="${escapeAttr(currentStatus)}" title="子タスクを追加">子タスク</button>
         <button type="button" class="btn-card-edit" data-task-id="${escapeAttr(t.id)}">編集</button>
       </div>
     `;
