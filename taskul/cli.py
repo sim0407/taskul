@@ -17,6 +17,7 @@ from .commands.remove_dependency import remove_dependency
 from .commands.mark_done import mark_done
 from .commands.seed import seed
 from .commands.serve import serve
+from .commands.import_tasks import import_tasks
 
 
 @click.group()
@@ -44,6 +45,7 @@ cli.add_command(remove_dependency)
 cli.add_command(mark_done)
 cli.add_command(seed)
 cli.add_command(serve)
+cli.add_command(import_tasks)
 
 
 def main():

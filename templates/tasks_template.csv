@@ -1,0 +1,5 @@
+title,status,description,start_date,due_date,milestone_id,parent_task_id
+要件定義,Backlog,プロジェクトの要件を定義する,2025-01-01,2025-01-15,,
+設計,Todo,システム設計を行う,2025-01-16,2025-01-31,,
+実装,Backlog,機能を実装する,2025-02-01,2025-02-28,,
+テスト,Backlog,テストを実施する,2025-03-01,2025-03-15,,

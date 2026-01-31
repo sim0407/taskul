@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<tasks>
+  <task>
+    <title>要件定義</title>
+    <status>Backlog</status>
+    <description>プロジェクトの要件を定義する</description>
+    <start_date>2025-01-01</start_date>
+    <due_date>2025-01-15</due_date>
+    <milestone_id></milestone_id>
+    <parent_task_id></parent_task_id>
+  </task>
+  <task>
+    <title>設計</title>
+    <status>Todo</status>
+    <description>システム設計を行う</description>
+    <start_date>2025-01-16</start_date>
+    <due_date>2025-01-31</due_date>
+    <milestone_id></milestone_id>
+    <parent_task_id></parent_task_id>
+  </task>
+  <task>
+    <title>実装</title>
+    <status>Backlog</status>
+    <description>機能を実装する</description>
+    <start_date>2025-02-01</start_date>
+    <due_date>2025-02-28</due_date>
+    <milestone_id></milestone_id>
+    <parent_task_id></parent_task_id>
+  </task>
+  <task>
+    <title>テスト</title>
+    <status>Backlog</status>
+    <description>テストを実施する</description>
+    <start_date>2025-03-01</start_date>
+    <due_date>2025-03-15</due_date>
+    <milestone_id></milestone_id>
+    <parent_task_id></parent_task_id>
+  </task>
+</tasks>
