@@ -66,6 +66,15 @@ python3 -m taskul create-task P-0001 "作業中" --status Doing --json-output
 # → 作成したタスクの JSON（id, project_id, title, status, rank など）
 ```
 
+### サンプルデータの一括投入
+
+```bash
+# サンプルプロジェクト＋マイルストーン・タスク・依存を一括作成
+python3 -m taskul seed
+# プロジェクト名を指定: python3 -m taskul seed --name "試用プロジェクト"
+# JSON で作成結果: python3 -m taskul seed --json-output
+```
+
 利用可能なステータス: `Backlog`, `Todo`, `Doing`, `Review`, `Done`
 
 ### 読み取り
