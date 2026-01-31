@@ -129,6 +129,19 @@
     }
   }
 
+  async function createSeedProject() {
+    try {
+      const summary = await fetchPOST('/seed', { name: 'サンプルプロジェクト' });
+      showToast('サンプルプロジェクトを作成しました');
+      await loadProjects();
+      if (summary && summary.project) {
+        openBoard(summary.project.id, summary.project.name);
+      }
+    } catch (e) {
+      showToast(e.message, true);
+    }
+  }
+
   function openNewProjectModal() {
     showModal('プロジェクト新規作成', `
       <form id="form-new-project" class="form">
@@ -559,6 +572,7 @@
     showView(viewProjects);
   });
   $('btn-new-project').addEventListener('click', openNewProjectModal);
+  $('btn-seed-project').addEventListener('click', createSeedProject);
   $('btn-new-task').addEventListener('click', openNewTaskModal);
   $('btn-add-dependency').addEventListener('click', openAddDependencyModal);
   $('btn-gantt').addEventListener('click', showGantt);

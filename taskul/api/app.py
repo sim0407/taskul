@@ -1,10 +1,11 @@
 """FastAPI application."""
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import RedirectResponse
 
+from .deps import get_db
 from .routes import projects, tasks, dependencies, events, milestones
 
 app = FastAPI(
@@ -12,6 +13,22 @@ app = FastAPI(
     description="Single-user local task management (Kanban + Gantt). Agent-friendly CLI & API.",
     version="0.1.0",
 )
+
+
+@app.post("/seed")
+def create_seed_project(
+    body: dict | None = None,
+    conn=Depends(get_db),
+):
+    """Create a sample project with milestones, tasks (including subtasks), and dependencies. Body: optional { \"name\": \"サンプルプロジェクト\" }."""
+    from ...commands.seed import seed_impl
+    name = (body or {}).get("name") or "サンプルプロジェクト"
+    try:
+        return seed_impl(conn, name)
+    except ValueError as e:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail=str(e))
+
 
 app.include_router(projects.router, prefix="/projects", tags=["projects"])
 app.include_router(milestones.router, prefix="/milestones", tags=["milestones"])
