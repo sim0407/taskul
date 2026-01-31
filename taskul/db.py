@@ -272,7 +272,7 @@ def get_board(
     missing_estimate: bool = False,
 ) -> dict | None:
     """
-    Get Kanban board: lanes by status with tasks ordered by start_date, due_date, created_at.
+    Get Kanban board: lanes by status with tasks ordered by parent's due_date (own due_date for root tasks), then start_date, created_at.
     Returns None if project does not exist.
 
     Filters (if True, only show tasks missing that field):
@@ -295,11 +295,21 @@ def get_board(
     if missing_estimate:
         filters.append("estimate_hours IS NULL")
     filter_clause = " AND " + " AND ".join(filters) if filters else ""
+    filter_clause_t = (
+        filter_clause.replace("milestone_id", "t.milestone_id")
+        .replace("due_date", "t.due_date")
+        .replace("estimate_hours", "t.estimate_hours")
+        if filter_clause
+        else ""
+    )
 
     for status in statuses:
+        # Order by parent's due_date (own due_date for root tasks), then start_date, created_at
         cur = conn.execute(
-            f"""SELECT * FROM tasks WHERE project_id = ? AND status = ?{filter_clause}
-               ORDER BY start_date NULLS LAST, due_date NULLS LAST, created_at""",
+            f"""SELECT t.* FROM tasks t
+               LEFT JOIN tasks parent ON parent.id = t.parent_task_id
+               WHERE t.project_id = ? AND t.status = ?{filter_clause_t}
+               ORDER BY COALESCE(parent.due_date, t.due_date) NULLS LAST, t.start_date NULLS LAST, t.created_at""",
             (project_id, status),
         )
         lanes[status] = [row_to_task(row, conn) for row in cur.fetchall()]
