@@ -6,7 +6,7 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 
 from ..deps import get_db
-from ...db import get_projects, get_project, get_board, get_gantt, list_blockers, get_milestones, get_project_delete_check
+from ...db import get_projects, get_project, get_board, get_gantt, list_blockers, get_milestones, get_project_delete_check, get_progress_summary
 
 router = APIRouter()
 
@@ -105,6 +105,18 @@ def get_project_milestones(
     if ms is None:
         raise HTTPException(status_code=404, detail="project not found")
     return ms
+
+
+@router.get("/{project_id}/progress")
+def get_project_progress(
+    project_id: str,
+    conn: sqlite3.Connection = Depends(get_db),
+):
+    """Get progress summary for the nearest upcoming milestone."""
+    summary = get_progress_summary(conn, project_id)
+    if summary is None:
+        raise HTTPException(status_code=404, detail="project not found")
+    return summary
 
 
 @router.post("/{project_id}/milestones")

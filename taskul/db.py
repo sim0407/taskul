@@ -472,6 +472,88 @@ def get_task_delete_check(conn: sqlite3.Connection, task_id: str) -> dict | None
     return {"child_count": child_count, "descendant_count": descendant_count}
 
 
+def get_progress_summary(
+    conn: sqlite3.Connection,
+    project_id: str,
+) -> dict | None:
+    """
+    Get progress summary for the nearest upcoming milestone.
+    Returns:
+    - milestone: the nearest milestone with due_date >= today (or None)
+    - total_estimate_hours: sum of estimate_hours for tasks linked to that milestone
+    - completed_estimate_hours: sum of estimate_hours for Review/Done tasks
+    - progress_percent: percentage of completed work (by estimate_hours)
+    - task_count: total number of tasks for that milestone
+    - completed_task_count: number of Review/Done tasks
+    """
+    from datetime import date
+    cur = conn.execute("SELECT id FROM projects WHERE id = ?", (project_id,))
+    if cur.fetchone() is None:
+        return None
+
+    today = date.today().isoformat()
+
+    # Find nearest milestone with due_date >= today
+    cur = conn.execute(
+        """SELECT * FROM milestones
+           WHERE project_id = ? AND due_date >= ?
+           ORDER BY due_date ASC LIMIT 1""",
+        (project_id, today),
+    )
+    milestone_row = cur.fetchone()
+
+    if milestone_row is None:
+        # No upcoming milestone, show overall project stats
+        cur = conn.execute(
+            """SELECT
+                COUNT(*) as task_count,
+                SUM(CASE WHEN status IN ('Review', 'Done') THEN 1 ELSE 0 END) as completed_task_count,
+                COALESCE(SUM(estimate_hours), 0) as total_estimate_hours,
+                COALESCE(SUM(CASE WHEN status IN ('Review', 'Done') THEN estimate_hours ELSE 0 END), 0) as completed_estimate_hours
+               FROM tasks WHERE project_id = ?""",
+            (project_id,),
+        )
+        stats = cur.fetchone()
+        total = stats["total_estimate_hours"] or 0
+        completed = stats["completed_estimate_hours"] or 0
+        progress = round(completed / total * 100, 1) if total > 0 else 0
+
+        return {
+            "milestone": None,
+            "total_estimate_hours": total,
+            "completed_estimate_hours": completed,
+            "progress_percent": progress,
+            "task_count": stats["task_count"],
+            "completed_task_count": stats["completed_task_count"],
+        }
+
+    milestone = row_to_milestone(milestone_row)
+
+    # Get task stats for this milestone
+    cur = conn.execute(
+        """SELECT
+            COUNT(*) as task_count,
+            SUM(CASE WHEN status IN ('Review', 'Done') THEN 1 ELSE 0 END) as completed_task_count,
+            COALESCE(SUM(estimate_hours), 0) as total_estimate_hours,
+            COALESCE(SUM(CASE WHEN status IN ('Review', 'Done') THEN estimate_hours ELSE 0 END), 0) as completed_estimate_hours
+           FROM tasks WHERE project_id = ? AND milestone_id = ?""",
+        (project_id, milestone["id"]),
+    )
+    stats = cur.fetchone()
+    total = stats["total_estimate_hours"] or 0
+    completed = stats["completed_estimate_hours"] or 0
+    progress = round(completed / total * 100, 1) if total > 0 else 0
+
+    return {
+        "milestone": milestone,
+        "total_estimate_hours": total,
+        "completed_estimate_hours": completed,
+        "progress_percent": progress,
+        "task_count": stats["task_count"],
+        "completed_task_count": stats["completed_task_count"],
+    }
+
+
 def get_events(
     conn: sqlite3.Connection,
     limit: int = 100,

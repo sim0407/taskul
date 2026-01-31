@@ -10,6 +10,7 @@
   const projectList = $('project-list');
   const boardLanes = $('board-lanes');
   const ganttContainer = $('gantt-container');
+  const progressSummary = $('progress-summary');
   const boardTitle = $('board-title');
   const blockersList = $('blockers-list');
   const toastEl = $('toast');
@@ -416,6 +417,45 @@
     return { project_id: board.project_id, lanes };
   }
 
+  async function loadProgressSummary() {
+    if (!currentProjectId) {
+      progressSummary.classList.add('hidden');
+      return;
+    }
+    try {
+      const summary = await fetchJSON('/projects/' + encodeURIComponent(currentProjectId) + '/progress');
+      renderProgressSummary(summary);
+    } catch (e) {
+      progressSummary.classList.add('hidden');
+    }
+  }
+
+  function renderProgressSummary(summary) {
+    if (!summary || summary.task_count === 0) {
+      progressSummary.classList.add('hidden');
+      return;
+    }
+
+    const milestoneName = summary.milestone
+      ? `${escapeHtml(summary.milestone.title)} (${summary.milestone.due_date})`
+      : 'プロジェクト全体';
+
+    const progressBar = `<div class="progress-bar"><div class="progress-fill" style="width: ${summary.progress_percent}%"></div></div>`;
+
+    progressSummary.innerHTML = `
+      <div class="progress-header">
+        <span class="progress-milestone">${milestoneName}</span>
+        <span class="progress-percent">${summary.progress_percent}%</span>
+      </div>
+      ${progressBar}
+      <div class="progress-details">
+        <span>タスク: ${summary.completed_task_count}/${summary.task_count} 完了</span>
+        <span>見積: ${summary.completed_estimate_hours}h / ${summary.total_estimate_hours}h</span>
+      </div>
+    `;
+    progressSummary.classList.remove('hidden');
+  }
+
   function getMissingFilterQueryParams() {
     const missingMilestone = $('board-filter-missing-milestone')?.checked || false;
     const missingDue = $('board-filter-missing-due')?.checked || false;
@@ -442,6 +482,7 @@
       lastBoard = board;
       fillBoardFilterSelects(board, milestones);
       renderBoardWithFilters();
+      loadProgressSummary();
     } catch (e) {
       boardLanes.innerHTML = '<div class="error">読み込み失敗: ' + escapeHtml(e.message) + '</div>';
     }
@@ -458,6 +499,7 @@
       lastBoard = board;
       fillBoardFilterSelects(board, milestones);
       renderBoardWithFilters();
+      loadProgressSummary();
     } catch (e) {
       showToast(e.message, true);
     }
