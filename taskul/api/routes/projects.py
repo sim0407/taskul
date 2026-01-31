@@ -138,6 +138,34 @@ def create_milestone(
         raise HTTPException(status_code=400, detail=str(e))
 
 
+@router.get("/{project_id}/export")
+def export_project_tasks(
+    project_id: str,
+    format: str = "csv",
+    conn: sqlite3.Connection = Depends(get_db),
+):
+    """Export project tasks to CSV or XML format.
+
+    Query params:
+    - format: 'csv' or 'xml' (default: csv)
+    """
+    from ...commands.export_tasks import export_tasks_impl
+    try:
+        content = export_tasks_impl(conn, project_id, format)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    media_type = "text/csv" if format == "csv" else "application/xml"
+    filename = f"{project_id}_tasks.{format}"
+
+    from fastapi.responses import Response
+    return Response(
+        content=content,
+        media_type=media_type,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
 @router.post("/{project_id}/import")
 def import_tasks(
     project_id: str,

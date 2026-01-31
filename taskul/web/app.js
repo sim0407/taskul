@@ -1234,6 +1234,36 @@
     });
   }
 
+  // Export tasks modal
+  function openExportModal() {
+    if (!currentProjectId) return;
+    showModal('タスクをエクスポート', `
+      <form id="form-export" class="form">
+        <p class="hint">プロジェクトのタスクをCSVまたはXML形式でエクスポートします。</p>
+        <div class="form-group">
+          <label for="export-format">形式</label>
+          <select id="export-format" name="format">
+            <option value="csv">CSV</option>
+            <option value="xml">XML</option>
+          </select>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn-cancel" data-dismiss="modal">キャンセル</button>
+          <button type="submit" class="btn-submit">エクスポート</button>
+        </div>
+      </form>
+    `);
+    const form = modalBody.querySelector('#form-export');
+    form.querySelector('[data-dismiss="modal"]').addEventListener('click', closeModal);
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const format = form.querySelector('#export-format').value;
+      const url = API + '/projects/' + encodeURIComponent(currentProjectId) + '/export?format=' + format;
+      window.open(url, '_blank');
+      closeModal();
+    });
+  }
+
   // Delete project
   async function deleteProject(projectId, projectName) {
     try {
@@ -1282,6 +1312,7 @@
   $('btn-milestones').addEventListener('click', openMilestonesModal);
   $('btn-events').addEventListener('click', openEventsModal);
   $('btn-import').addEventListener('click', openImportModal);
+  $('btn-export').addEventListener('click', openExportModal);
 
   $('btn-gantt').addEventListener('click', showGantt);
   $('btn-back-gantt').addEventListener('click', backToBoard);
