@@ -633,13 +633,12 @@
       : '';
     const parentBadge = hasChildren ? '<span class="card-parent-badge" title="ステータスは子タスクから自動計算">親</span>' : '';
 
-    // Show parent path for child tasks (grandparent/parent/ format)
+    // Show parent path for child tasks (grandparent/parent/ format). When parent is filtered out, show parent_task_id + parent_title from API.
     let parentInfo = '';
     if (t.parent_task_id) {
       const parentPath = getParentPath(t);
-      if (parentPath) {
-        parentInfo = `<div class="card-parent-info" title="${escapeAttr(parentPath)}">${escapeHtml(parentPath)}</div>`;
-      }
+      const displayText = parentPath || (t.parent_title ? t.parent_task_id + ' ' + t.parent_title : t.parent_task_id);
+      parentInfo = `<div class="card-parent-info" title="${escapeAttr(displayText)}">${escapeHtml(displayText)}</div>`;
     }
 
     // Due date and estimate display

@@ -253,6 +253,8 @@ def row_to_task(row, conn: sqlite3.Connection = None) -> dict:
         out["parent_task_id"] = row["parent_task_id"] or None
     if "depth" in keys:
         out["depth"] = row["depth"] if row["depth"] is not None else 0
+    if "parent_title" in keys:
+        out["parent_title"] = row["parent_title"] or None
     return out
 
 
@@ -306,7 +308,7 @@ def get_board(
     for status in statuses:
         # Order by parent's due_date (own due_date for root tasks), then start_date, created_at
         cur = conn.execute(
-            f"""SELECT t.* FROM tasks t
+            f"""SELECT t.*, parent.title AS parent_title FROM tasks t
                LEFT JOIN tasks parent ON parent.id = t.parent_task_id
                WHERE t.project_id = ? AND t.status = ?{filter_clause_t}
                ORDER BY COALESCE(parent.due_date, t.due_date) NULLS LAST, t.start_date NULLS LAST, t.created_at""",
