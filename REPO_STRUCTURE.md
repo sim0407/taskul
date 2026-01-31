@@ -85,7 +85,7 @@ DB はデフォルトで `~/.taskul/taskul.db` に作成されるためリポジ
 
 | 段階 | テーマ | 進捗 |
 |------|--------|------|
-| **1** | 操作の充実（CLI/API） | CLI 完了 / API 未着手 |
+| **1** | 操作の充実（CLI/API） | CLI・API 完了 |
 | **2** | 状態の可視化（board / gantt / blockers） | データ取得完了 / 表示は Phase 4 で |
 | **3** | ルールと整合性（依存・制約・履歴） | 依存・制約は一部完了 / 履歴の共通化・参照は未着手 |
 | **4** | UI（Web / TUI） | 未着手 |
@@ -104,11 +104,11 @@ DB はデフォルトで `~/.taskul/taskul.db` に作成されるためリポジ
 - **依存**: `add-dependency`, `remove-dependency`（サイクル時は拒否）
 - 全コマンドで `--json-output` 対応。1 コマンド 1 モジュール（`taskul/commands/`）。
 
-#### 1.2 HTTP API（未着手）
+#### 1.2 HTTP API（✅ 完了）
 
-- **配置**: `taskul/api/`（FastAPI 想定）。既存の `db.py` と `commands/` のロジックを再利用。
-- **エンドポイント例**: `GET/POST /projects`, `GET /projects/{id}/board`, `GET /projects/{id}/gantt`, `GET/POST/PATCH /tasks`, `POST /tasks/{id}/move`, `POST/DELETE /dependencies` など。
-- 単一ユーザー・ローカル前提（認証・マルチユーザーは Non-Goals）。起動例: `taskul serve` または `uvicorn taskul.api.app:app`。
+- **配置**: `taskul/api/`（FastAPI）。既存の `db.py` と `commands/*_impl` を再利用。
+- **エンドポイント**: `GET/POST /projects`, `GET /projects/{id}`, `GET /projects/{id}/board`, `GET /projects/{id}/gantt`, `GET /projects/{id}/blockers`, `GET/POST/PATCH /tasks/{id}`, `POST /tasks/{id}/move`, `POST /tasks/{id}/mark-done`, `POST/DELETE /dependencies`。
+- 単一ユーザー・ローカル前提。起動: `taskul serve` または `uvicorn taskul.api.app:app`。Swagger UI: `/docs`。
 
 ---
 

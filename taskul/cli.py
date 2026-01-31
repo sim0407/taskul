@@ -11,6 +11,7 @@ from .commands.move_task import move_task
 from .commands.add_dependency import add_dependency
 from .commands.remove_dependency import remove_dependency
 from .commands.mark_done import mark_done
+from .commands.serve import serve
 
 
 @click.group()
@@ -32,6 +33,7 @@ cli.add_command(move_task)
 cli.add_command(add_dependency)
 cli.add_command(remove_dependency)
 cli.add_command(mark_done)
+cli.add_command(serve)
 
 
 def main():

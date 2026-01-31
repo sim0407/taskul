@@ -51,6 +51,21 @@ def next_id(conn: sqlite3.Connection, prefix: str) -> str:
     return f"{prefix}-{next_val:0{width}d}"
 
 
+def get_projects(conn: sqlite3.Connection) -> list[dict]:
+    """List all projects (id, name)."""
+    cur = conn.execute("SELECT id, name FROM projects ORDER BY id")
+    return [{"id": row["id"], "name": row["name"]} for row in cur.fetchall()]
+
+
+def get_project(conn: sqlite3.Connection, project_id: str) -> dict | None:
+    """Get a single project by id. Returns None if not found."""
+    cur = conn.execute("SELECT id, name FROM projects WHERE id = ?", (project_id,))
+    row = cur.fetchone()
+    if row is None:
+        return None
+    return {"id": row["id"], "name": row["name"]}
+
+
 def row_to_task(row) -> dict:
     """Convert a tasks table row to a task dict (for JSON / API)."""
     if row is None:
