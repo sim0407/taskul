@@ -76,6 +76,25 @@ main { padding: 1rem; max-width: 1600px; margin: 0 auto; }
   border-radius: 4px;
   min-width: 10rem;
 }
+.filter-separator {
+  color: var(--card-border);
+  margin: 0 0.25rem;
+}
+.filter-label {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+.filter-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.85rem;
+  color: var(--text);
+  cursor: pointer;
+}
+.filter-checkbox input[type="checkbox"] {
+  accent-color: var(--accent);
+}
 .gantt-filters { margin-bottom: 0.75rem; }
 .btn-back, .btn-blockers {
   padding: 0.4rem 0.8rem;

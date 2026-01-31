@@ -415,6 +415,17 @@
     return { project_id: board.project_id, lanes };
   }
 
+  function getMissingFilterQueryParams() {
+    const missingMilestone = $('board-filter-missing-milestone')?.checked || false;
+    const missingDue = $('board-filter-missing-due')?.checked || false;
+    const missingEstimate = $('board-filter-missing-estimate')?.checked || false;
+    const params = [];
+    if (missingMilestone) params.push('missing_milestone=true');
+    if (missingDue) params.push('missing_due_date=true');
+    if (missingEstimate) params.push('missing_estimate=true');
+    return params.length > 0 ? '?' + params.join('&') : '';
+  }
+
   async function openBoard(projectId, projectName) {
     currentProjectId = projectId;
     currentProjectName = projectName || projectId;
@@ -422,8 +433,9 @@
     boardLanes.innerHTML = '<div class="loading">ボード読み込み中…</div>';
     showView(viewBoard);
     try {
+      const queryParams = getMissingFilterQueryParams();
       const [board, milestones] = await Promise.all([
-        fetchJSON('/projects/' + encodeURIComponent(projectId) + '/board'),
+        fetchJSON('/projects/' + encodeURIComponent(projectId) + '/board' + queryParams),
         fetchJSON('/projects/' + encodeURIComponent(projectId) + '/milestones').catch(() => []),
       ]);
       lastBoard = board;
@@ -437,8 +449,9 @@
   async function refreshBoard() {
     if (!currentProjectId) return;
     try {
+      const queryParams = getMissingFilterQueryParams();
       const [board, milestones] = await Promise.all([
-        fetchJSON('/projects/' + encodeURIComponent(currentProjectId) + '/board'),
+        fetchJSON('/projects/' + encodeURIComponent(currentProjectId) + '/board' + queryParams),
         fetchJSON('/projects/' + encodeURIComponent(currentProjectId) + '/milestones').catch(() => []),
       ]);
       lastBoard = board;
@@ -1150,6 +1163,9 @@
   $('board-filter-milestone').addEventListener('change', renderBoardWithFilters);
   $('board-filter-parent').addEventListener('change', renderBoardWithFilters);
   $('board-filter-depth').addEventListener('change', renderBoardWithFilters);
+  $('board-filter-missing-milestone').addEventListener('change', refreshBoard);
+  $('board-filter-missing-due').addEventListener('change', refreshBoard);
+  $('board-filter-missing-estimate').addEventListener('change', refreshBoard);
 
   $('btn-milestones').addEventListener('click', openMilestonesModal);
   $('btn-events').addEventListener('click', openEventsModal);

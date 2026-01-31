@@ -50,6 +50,11 @@
         <select id="board-filter-depth" class="filter-select" title="表示するタスクを階層で絞り込み">
           <option value="">すべて</option>
         </select>
+        <span class="filter-separator">|</span>
+        <span class="filter-label">未設定のみ:</span>
+        <label class="filter-checkbox"><input type="checkbox" id="board-filter-missing-milestone">マイルストーン</label>
+        <label class="filter-checkbox"><input type="checkbox" id="board-filter-missing-due">期限</label>
+        <label class="filter-checkbox"><input type="checkbox" id="board-filter-missing-estimate">見積</label>
       </div>
       <div id="board-lanes" class="board-lanes"></div>
     </section>

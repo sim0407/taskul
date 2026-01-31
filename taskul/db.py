@@ -261,19 +261,42 @@ def get_task(conn: sqlite3.Connection, task_id: str) -> dict | None:
     return row_to_task(row, conn)
 
 
-def get_board(conn: sqlite3.Connection, project_id: str) -> dict | None:
+def get_board(
+    conn: sqlite3.Connection,
+    project_id: str,
+    *,
+    missing_milestone: bool = False,
+    missing_due_date: bool = False,
+    missing_estimate: bool = False,
+) -> dict | None:
     """
     Get Kanban board: lanes by status with tasks ordered by start_date, due_date, created_at.
     Returns None if project does not exist.
+
+    Filters (if True, only show tasks missing that field):
+    - missing_milestone: tasks without milestone_id
+    - missing_due_date: tasks without due_date
+    - missing_estimate: tasks without estimate_hours
     """
     cur = conn.execute("SELECT id FROM projects WHERE id = ?", (project_id,))
     if cur.fetchone() is None:
         return None
     statuses = ("Backlog", "Todo", "Doing", "Review", "Done")
     lanes = {}
+
+    # Build filter conditions
+    filters = []
+    if missing_milestone:
+        filters.append("milestone_id IS NULL")
+    if missing_due_date:
+        filters.append("due_date IS NULL")
+    if missing_estimate:
+        filters.append("estimate_hours IS NULL")
+    filter_clause = " AND " + " AND ".join(filters) if filters else ""
+
     for status in statuses:
         cur = conn.execute(
-            """SELECT * FROM tasks WHERE project_id = ? AND status = ?
+            f"""SELECT * FROM tasks WHERE project_id = ? AND status = ?{filter_clause}
                ORDER BY start_date NULLS LAST, due_date NULLS LAST, created_at""",
             (project_id, status),
         )

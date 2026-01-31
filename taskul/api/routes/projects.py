@@ -45,10 +45,25 @@ def check_project_delete(
 @router.get("/{project_id}/board")
 def get_project_board(
     project_id: str,
+    missing_milestone: bool = False,
+    missing_due_date: bool = False,
+    missing_estimate: bool = False,
     conn: sqlite3.Connection = Depends(get_db),
 ):
-    """Get Kanban board (lanes by status with ordered tasks)."""
-    board = get_board(conn, project_id)
+    """Get Kanban board (lanes by status with ordered tasks).
+
+    Optional filters to show only tasks missing certain fields:
+    - missing_milestone: only tasks without milestone
+    - missing_due_date: only tasks without due_date
+    - missing_estimate: only tasks without estimate_hours
+    """
+    board = get_board(
+        conn,
+        project_id,
+        missing_milestone=missing_milestone,
+        missing_due_date=missing_due_date,
+        missing_estimate=missing_estimate,
+    )
     if board is None:
         raise HTTPException(status_code=404, detail="project not found")
     return board
