@@ -88,7 +88,7 @@ DB はデフォルトで `~/.taskul/taskul.db` に作成されるためリポジ
 | **1** | 操作の充実（CLI/API） | CLI・API 完了 |
 | **2** | 状態の可視化（board / gantt / blockers） | データ取得完了 / 表示は Phase 4 で |
 | **3** | ルールと整合性（依存・制約・履歴） | 依存・制約・履歴（共通化・参照）完了 |
-| **4** | UI（Web / TUI） | Web UI 完了（表示・ブロッカー） / TUI 未着手 |
+| **4** | UI（Web / TUI） | Web UI 表示完了 / 操作拡張・TUI 未着手 |
 
 ---
 
@@ -156,11 +156,42 @@ CLI/JSON での出力は実装済み。グラフィカルな表示は **Phase 4�
 
 **目的**: ボード・ガント・ブロッカーなどを画面で見て操作できるようにする。
 
-#### 4.1 Web UI（✅ 完了・表示）
+#### 4.1 Web UI（✅ 表示完了 / 操作拡張は未着手）
 
 - **配置**: `taskul/web/`（index.html, style.css, app.js）。FastAPI で `/app/` に StaticFiles マウント。
-- **内容**: プロジェクト一覧 → プロジェクト選択で Kanban ボード（Backlog / Todo / Doing / Review / Done のレーン＋タスクカード）を表示。ブロッカー一覧ボタンでブロックされているタスクを表示。既存 API（GET /projects, GET /projects/{id}/board, GET /projects/{id}/blockers）を利用。表示のみ（編集は CLI/API）。
-- SPEC の Non-Goals「Complex gantt editing UI」のため、Gantt 表示・ドラッグ操作は未実装。
+- **現状**: プロジェクト一覧 → プロジェクト選択で Kanban ボード（5 レーン＋タスクカード）を表示。ブロッカー一覧。既存 API（GET）のみ利用。**表示のみ**（追加・変更は CLI/API）。
+- SPEC の Non-Goals「Complex gantt editing UI」のため、Gantt 表示・ドラッグ操作は対象外。
+
+#### 4.1.2 Web UI 操作拡張（未着手）
+
+**目的**: Web UI からプロジェクト・タスクの追加・変更・依存の操作を行えるようにする（CLI/API と同等の操作を画面で実行可能にする）。
+
+**前提**:
+- 既存の HTTP API（POST/PATCH/DELETE）をそのまま利用する。バックエンドの新規エンドポイントは不要。
+- 単一ユーザー・ローカル前提のため、認証は不要（同一オリジンで API を叩く）。
+
+**必要な事項（機能ごと）**:
+
+| 操作 | 利用する API | Web UI で必要なこと |
+|------|----------------|---------------------|
+| プロジェクト作成 | `POST /projects`（body: `name`） | プロジェクト一覧画面に「新規作成」ボタン＋モーダル/フォーム（名前入力）→ 送信後に一覧を再取得して表示 |
+| タスク作成 | `POST /tasks`（body: `project_id`, `title`, `status?`） | ボード画面に「タスク追加」ボタン＋フォーム（タイトル、ステータス選択）→ 送信後にボードを再取得 |
+| タスク更新 | `PATCH /tasks/{id}`（body: 任意フィールド） | タスクカードに「編集」またはクリックでフォーム（title, description, status, start_date, due_date, estimate_hours）→ 送信後にボードを再取得 |
+| タスク移動 | `POST /tasks/{id}/move`（body: `status`, `position?`） | カードにステータス変更 UI（ドロップダウンまたは「→ Todo」等のボタン）、必要なら position（top/bottom/after）の指定 |
+| タスク完了 | `POST /tasks/{id}/mark-done` | カードに「完了」ボタン→ 送信後にボードを再取得 |
+| 依存追加 | `POST /dependencies`（body: `from_task_id`, `to_task_id`） | ボードまたはタスク詳細で「依存を追加」フォーム（from / to のタスク ID 選択または入力）→ サイクル時は API が 400 を返すのでメッセージ表示 |
+| 依存削除 | `DELETE /dependencies?from_task_id=...&to_task_id=...` | ブロッカー一覧またはタスク詳細で依存一覧＋「削除」ボタン |
+
+**共通で必要なこと**:
+- **エラー表示**: 上記 API が 4xx を返したとき、レスポンスの `detail` を画面に表示する（例: バリデーションエラー、サイクル拒否、not found）。
+- **操作後の更新**: 作成・更新・移動・削除の成功後に、該当するデータ（プロジェクト一覧またはボード）を再取得（GET）して DOM を更新する。
+- **入力チェック**: 必須項目（名前、タイトル、project_id など）はクライアント側でもチェックし、API の 400 を減らす（任意）。
+
+**実装方針**:
+- 既存の `taskul/web/` の HTML/CSS/JS を拡張する。フレームワークは使わず Vanilla JS のままでも可。必要に応じてフォーム用のモーダルやインライン編集の UI を追加。
+- ドラッグ＆ドロップでのレーン間移動は、SPEC の「Complex gantt editing UI」を避けるため、まずはドロップダウンやボタンで「移動先ステータス」を選ぶ方式でよい。将来的に D&D を入れてもよい。
+
+**優先度の目安**: プロジェクト作成 → タスク作成 → タスク完了・移動 → タスク更新（編集） → 依存追加・削除、の順で段階的に追加すると扱いやすい。
 
 #### 4.2 TUI（未着手）
 
