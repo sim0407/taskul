@@ -674,8 +674,11 @@
       const statusDisabled = hasChildren ? 'disabled' : '';
       const statusHint = hasChildren ? '<span class="form-hint">（子タスクから自動計算）</span>' : '';
 
-      showModal('タスク編集', `
+      showModal('タスク編集: ' + escapeHtml(taskId), `
         <form id="form-edit-task" class="form">
+          <div class="form-group form-group-id">
+            <span class="task-id-display">${escapeHtml(taskId)}</span>
+          </div>
           <div class="form-group">
             <label for="edit-title">タイトル</label>
             <input type="text" id="edit-title" name="title" value="${escapeAttr(task.title || '')}" required>

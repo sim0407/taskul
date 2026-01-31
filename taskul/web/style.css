@@ -317,6 +317,15 @@ main { padding: 1rem; max-width: 1600px; margin: 0 auto; }
 .modal-close:hover { color: var(--text); }
 .modal-body { padding: 1rem; }
 .form-group { margin-bottom: 0.75rem; }
+.form-group-id { margin-bottom: 0.5rem; }
+.task-id-display {
+  font-family: monospace;
+  font-size: 0.9rem;
+  color: var(--muted);
+  background: var(--lane-bg);
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+}
 .form-group label { display: block; font-size: 0.85rem; margin-bottom: 0.25rem; color: var(--muted); }
 .form-group input, .form-group select, .form-group textarea {
   width: 100%;
