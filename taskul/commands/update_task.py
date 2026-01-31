@@ -58,7 +58,13 @@ def update_task_impl(
         updates.append("milestone_id = ?")
         params.append(milestone_id if milestone_id else None)
 
-    if parent_task_id is not _UNSET:
+    # Only update parent when it actually changes (avoids cycle check on title/description-only save)
+    new_parent_normalized = (parent_task_id or None) if parent_task_id is not _UNSET else None
+    old_parent_normalized = old_parent_task_id or None
+    parent_actually_changing = (
+        parent_task_id is not _UNSET and new_parent_normalized != old_parent_normalized
+    )
+    if parent_actually_changing:
         new_depth = 0
         if parent_task_id:
             parent = get_task(conn, parent_task_id)
@@ -77,9 +83,9 @@ def update_task_impl(
     if status is not None:
         if status not in STATUSES:
             raise ValueError(f"status must be one of {STATUSES}")
-        # Check if task has children - if so, status is auto-calculated
+        # Block changing status only when task has children (title/description-only save may send current status)
         cur = conn.execute("SELECT COUNT(*) as cnt FROM tasks WHERE parent_task_id = ?", (task_id,))
-        if cur.fetchone()["cnt"] > 0:
+        if cur.fetchone()["cnt"] > 0 and status != task["status"]:
             raise ValueError("子タスクを持つタスクのステータスは自動計算されるため、直接変更できません")
         updates.append("status = ?")
         params.append(status)
@@ -93,7 +99,7 @@ def update_task_impl(
         params,
     )
     # When parent changed, cascade depth to all descendants
-    if parent_task_id is not _UNSET:
+    if parent_actually_changing:
         cur = conn.execute("SELECT depth FROM tasks WHERE id = ?", (task_id,))
         row = cur.fetchone()
         if row is not None:
@@ -108,11 +114,11 @@ def update_task_impl(
     new_parent_task_id = row["parent_task_id"] if row else None
 
     # If parent changed, recalculate old parent
-    if parent_task_id is not _UNSET and old_parent_task_id and old_parent_task_id != new_parent_task_id:
+    if parent_actually_changing and old_parent_task_id and old_parent_task_id != new_parent_task_id:
         recalc_parent_status(conn, old_parent_task_id)
 
     # Recalculate current parent if status changed or parent changed
-    if (status is not None or parent_task_id is not _UNSET) and new_parent_task_id:
+    if (status is not None or parent_actually_changing) and new_parent_task_id:
         recalc_parent_status(conn, new_parent_task_id)
 
     conn.commit()
