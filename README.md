@@ -19,34 +19,6 @@
 | DB | SQLite |
 | スキーマ | `schema/init.sql`（初回利用時に自動適用） |
 
-## ディレクトリ構成
-
-```
-taskul/
-├── SPEC.md              # 仕様（MVP エンティティ・クエリ・コマンド）
-├── REPO_STRUCTURE.md    # リポジトリ構成・方針
-├── README.md            # 本ドキュメント
-├── requirements.txt     # Python 依存（Click, FastAPI, uvicorn）
-├── schema/
-│   └── init.sql         # SQLite DDL
-└── taskul/
-    ├── __init__.py
-    ├── __main__.py      # python3 -m taskul のエントリ
-    ├── api/             # HTTP API（FastAPI）
-    │   ├── app.py
-    │   ├── deps.py
-    │   └── routes/
-    │       ├── projects.py
-    │       ├── tasks.py
-    │       └── dependencies.py
-    ├── cli.py           # CLI エントリポイント
-    ├── db.py            # DB 接続・スキーマ適用・ID 採番
-    ├── cycle_check.py   # 依存サイクル検出
-    └── commands/
-        ├── create_project.py, create_task.py, serve.py, ...
-        └── get_board.py, get_gantt.py, get_task.py, list_blockers.py, ...
-```
-
 ## セットアップ
 
 ```bash
@@ -96,7 +68,7 @@ python3 -m taskul create-task P-0001 "作業中" --status Doing --json-output
 
 利用可能なステータス: `Backlog`, `Todo`, `Doing`, `Review`, `Done`
 
-### 読み取り（Phase 1）
+### 読み取り
 
 ```bash
 # ボード取得（ステータス別レーン＋タスク順）
@@ -121,7 +93,7 @@ python3 -m taskul get-events [--project-id P-0001] [--type TASK_CREATED] [--limi
 # JSON: 末尾に --json-output
 ```
 
-### 更新・移動・依存（Phase 1）
+### 更新・移動・依存
 
 ```bash
 # タスク更新（指定した項目のみ更新）
@@ -141,7 +113,7 @@ python3 -m taskul remove-dependency T-000001 T-000002
 python3 -m taskul mark-done T-000001
 ```
 
-### HTTP API（Phase 1）
+### HTTP API
 
 ```bash
 # API サーバ起動（デフォルト http://127.0.0.1:8000）
@@ -185,17 +157,8 @@ uvicorn taskul.api.app:app --host 127.0.0.1 --port 8000
 
 ## ドキュメント
 
-- [SPEC.md](SPEC.md) … エンティティ（Project / Task / Dependency / Event）、MVP クエリ・コマンド、制約
-- [REPO_STRUCTURE.md](REPO_STRUCTURE.md) … ディレクトリ方針、Git 管理、今後の拡張案
-
-## 今後の拡張（4 段階）
-
-1. **操作の充実（CLI/API）** — CLI と HTTP API は完了。
-2. **状態の可視化（board / gantt / blockers）** — データ取得（get-board, get-gantt, list-blockers）は完了。表示は Phase 4 の UI で。
-3. **ルールと整合性（依存・制約・履歴）** — 依存・制約・履歴の共通化（events.py）と参照（get-events, GET /events）は完了。
-4. **UI（Web / TUI）** — Web UI の表示・操作（プロジェクト・タスクの作成・編集・移動・完了、依存の追加・解除）は完了。TUI は未着手。
-
-詳細は [REPO_STRUCTURE.md](REPO_STRUCTURE.md) の「今後の拡張」を参照。
+- [SPEC.md](SPEC.md) … エンティティ（Project / Task / Dependency / Event）、クエリ・コマンド、制約
+- [REPO_STRUCTURE.md](REPO_STRUCTURE.md) … ディレクトリ方針、Git 管理
 
 ## ライセンス
 

@@ -61,4 +61,9 @@ Agent-friendly: all operations are possible via CLI and HTTP API, with JSON outp
 3. ルールと整合性（依存・制約・履歴）
 4. UI（Web / TUI）
 
-進捗・詳細は REPO_STRUCTURE.md の「今後の拡張」を参照。
+## 今後の検討事項
+
+- **Web UI の改善**: ガントチャートの閲覧、タスク移動を左右矢印に変更（完了ボタンから）、その他 UI の改善
+- **TUI**: ターミナル内でのボード表示・キー操作（Textual / Cursive 等の検討）
+- **スキーママイグレーション**: カラム・テーブル追加時に `schema/migrations/` でバージョン管理する方式の検討
+- **パッケージ公開**: PyPI 公開時は `pyproject.toml` とコンソールスクリプト `taskul` の整備
