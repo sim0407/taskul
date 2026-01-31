@@ -58,6 +58,17 @@ source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
+**Debian/Ubuntu で「ensurepip is not available」と出る場合**  
+仮想環境用パッケージを入れてからやり直してください。
+
+```bash
+sudo apt update
+sudo apt install python3.12-venv   # または python3-venv
+python3 -m venv .venv
+```
+
+（`apt install` で 404 が出る場合は、先に `sudo apt update` でパッケージ一覧を更新してください。）
+
 ## 使い方
 
 DB は初回コマンド実行時に自動作成され、`schema/init.sql` が適用されます。デフォルトのパスは `~/.taskul/taskul.db` です。別パスにする場合は環境変数 `TASKUL_DB` またはオプション `--db` を指定してください。
@@ -143,6 +154,7 @@ uvicorn taskul.api.app:app --host 127.0.0.1 --port 8000
 
 起動後:
 
+- **http://127.0.0.1:8000/** … API ルート（JSON: `service`, `docs`, `web_ui` の URL 一覧）
 - **http://127.0.0.1:8000/docs** … Swagger UI（API ドキュメント）
 - **http://127.0.0.1:8000/app/** … Web UI（プロジェクト一覧・ボード表示・ブロッカー一覧）
 
@@ -181,7 +193,7 @@ uvicorn taskul.api.app:app --host 127.0.0.1 --port 8000
 1. **操作の充実（CLI/API）** — CLI と HTTP API は完了。
 2. **状態の可視化（board / gantt / blockers）** — データ取得（get-board, get-gantt, list-blockers）は完了。表示は Phase 4 の UI で。
 3. **ルールと整合性（依存・制約・履歴）** — 依存・制約・履歴の共通化（events.py）と参照（get-events, GET /events）は完了。
-4. **UI（Web / TUI）** — Web UI（表示・ブロッカー一覧）は完了。TUI は未着手。
+4. **UI（Web / TUI）** — Web UI の表示は完了。プロジェクト・タスクの追加・変更などの操作拡張は未着手（方針は [REPO_STRUCTURE.md](REPO_STRUCTURE.md) の「4.1.2 Web UI 操作拡張」を参照）。TUI は未着手。
 
 詳細は [REPO_STRUCTURE.md](REPO_STRUCTURE.md) の「今後の拡張」を参照。
 
