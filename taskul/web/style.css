@@ -134,6 +134,10 @@ main { padding: 1rem; max-width: 1600px; margin: 0 auto; }
   font-size: 0.9rem;
 }
 .card:last-child { margin-bottom: 0; }
+.card[draggable="true"] { cursor: grab; }
+.card.dragging { opacity: 0.5; cursor: grabbing; }
+.card.drop-target { border-top: 2px solid var(--accent); margin-top: -2px; }
+.lane-cards.drag-over { background: rgba(122, 162, 247, 0.1); }
 .card-id { color: var(--muted); font-size: 0.75rem; margin-bottom: 0.2rem; }
 .card-title { font-weight: 500; }
 
@@ -364,3 +368,25 @@ main { padding: 1rem; max-width: 1600px; margin: 0 auto; }
   border: 1px dashed rgba(255, 255, 255, 0.3);
   border-radius: 2px;
 }
+
+/* Gantt bar colors by status */
+.gantt-bar-backlog { background: #3b4261; }
+.gantt-bar-todo { background: #449d6a; }
+.gantt-bar-doing { background: #ff9e64; }
+.gantt-bar-review { background: #bb9af7; }
+.gantt-bar-done { background: #9ece6a; }
+
+/* Gantt status badge */
+.gantt-status {
+  display: inline-block;
+  font-size: 0.7rem;
+  padding: 0.1rem 0.35rem;
+  border-radius: 3px;
+  margin-left: 0.3rem;
+  vertical-align: middle;
+}
+.gantt-status-backlog { background: #3b4261; color: #c0caf5; }
+.gantt-status-todo { background: #2d4a3e; color: #9ece6a; }
+.gantt-status-doing { background: #4a3d2d; color: #ff9e64; }
+.gantt-status-review { background: #4a2d4a; color: #bb9af7; }
+.gantt-status-done { background: #2d4a3d; color: #9ece6a; }

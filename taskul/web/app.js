@@ -424,6 +424,69 @@
     boardLanes.querySelectorAll('.btn-card-edit').forEach(btn => {
       btn.addEventListener('click', () => openEditTaskModal(btn.dataset.taskId));
     });
+
+    // ドラッグ&ドロップ
+    boardLanes.querySelectorAll('.card').forEach(card => {
+      card.addEventListener('dragstart', (e) => {
+        e.dataTransfer.setData('text/plain', card.dataset.taskId);
+        card.classList.add('dragging');
+      });
+      card.addEventListener('dragend', () => {
+        card.classList.remove('dragging');
+        boardLanes.querySelectorAll('.lane-cards').forEach(lc => lc.classList.remove('drag-over'));
+        boardLanes.querySelectorAll('.card').forEach(c => c.classList.remove('drop-target'));
+      });
+    });
+
+    boardLanes.querySelectorAll('.lane-cards').forEach(laneCards => {
+      laneCards.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        laneCards.classList.add('drag-over');
+        const afterCard = getDragAfterElement(laneCards, e.clientY);
+        laneCards.querySelectorAll('.card').forEach(c => c.classList.remove('drop-target'));
+        if (afterCard) {
+          afterCard.classList.add('drop-target');
+        }
+      });
+      laneCards.addEventListener('dragleave', (e) => {
+        if (!laneCards.contains(e.relatedTarget)) {
+          laneCards.classList.remove('drag-over');
+          laneCards.querySelectorAll('.card').forEach(c => c.classList.remove('drop-target'));
+        }
+      });
+      laneCards.addEventListener('drop', async (e) => {
+        e.preventDefault();
+        laneCards.classList.remove('drag-over');
+        laneCards.querySelectorAll('.card').forEach(c => c.classList.remove('drop-target'));
+        const taskId = e.dataTransfer.getData('text/plain');
+        if (!taskId) return;
+        const lane = laneCards.closest('.lane');
+        const status = lane.dataset.status;
+        const afterCard = getDragAfterElement(laneCards, e.clientY);
+        let position = 'bottom';
+        if (afterCard) {
+          position = 'after:' + afterCard.dataset.taskId;
+        } else {
+          const cards = [...laneCards.querySelectorAll('.card')];
+          if (cards.length === 0 || e.clientY < cards[0].getBoundingClientRect().top + cards[0].offsetHeight / 2) {
+            position = 'top';
+          }
+        }
+        await moveTask(taskId, status, position);
+      });
+    });
+  }
+
+  function getDragAfterElement(container, y) {
+    const cards = [...container.querySelectorAll('.card:not(.dragging)')];
+    return cards.reduce((closest, card) => {
+      const box = card.getBoundingClientRect();
+      const offset = y - box.top - box.height / 2;
+      if (offset < 0 && offset > closest.offset) {
+        return { offset, element: card };
+      }
+      return closest;
+    }, { offset: Number.NEGATIVE_INFINITY }).element || null;
   }
 
   function renderBoard(board) {
@@ -441,11 +504,11 @@
       <div class="card-actions">
         ${hasPrev ? `<button type="button" class="btn-move-left btn-arrow" data-task-id="${escapeAttr(t.id)}" data-status="${escapeAttr(prevStatus)}" title="${escapeAttr(prevStatus)}へ">←</button>` : ''}
         ${hasNext ? `<button type="button" class="btn-move-right btn-arrow" data-task-id="${escapeAttr(t.id)}" data-status="${escapeAttr(nextStatus)}" title="${escapeAttr(nextStatus)}へ">→</button>` : ''}
-        <button type="button" class="btn-add-subtask" data-task-id="${escapeAttr(t.id)}" data-task-title="${escapeAttr(t.title || '')}" data-task-status="${escapeAttr(currentStatus)}" title="子タスクを追加">子タスク</button>
+        <button type="button" class="btn-add-subtask" data-task-id="${escapeAttr(t.id)}" data-task-title="${escapeAttr(t.title || '')}" data-task-status="${escapeAttr(currentStatus)}" title="子タスクを追加">+子タスク</button>
         <button type="button" class="btn-card-edit" data-task-id="${escapeAttr(t.id)}">編集</button>
       </div>
     `;
-    return `<div class="card" data-task-id="${escapeAttr(t.id)}"><div class="card-id">${escapeHtml(t.id)}</div><div class="card-title">${escapeHtml(t.title)}</div>${actions}</div>`;
+    return `<div class="card" data-task-id="${escapeAttr(t.id)}" draggable="true"><div class="card-id">${escapeHtml(t.id)}</div><div class="card-title">${escapeHtml(t.title)}</div>${actions}</div>`;
   }
 
   async function markDone(taskId) {
@@ -478,6 +541,27 @@
         return;
       }
       const statusOpts = STATUSES.map(s => `<option value="${s}" ${s === task.status ? 'selected' : ''}>${s}</option>`).join('');
+
+      // マイルストーン選択肢
+      const milestoneOpts = '<option value="">(なし)</option>' +
+        lastBoardMilestones.map(m => `<option value="${escapeAttr(m.id)}" ${m.id === task.milestone_id ? 'selected' : ''}>${escapeHtml(m.id + ' ' + (m.title || ''))}</option>`).join('');
+
+      // 親タスク選択肢（自身と子孫は除外）
+      const allTasks = lastBoard ? STATUSES.flatMap(s => (lastBoard.lanes[s] || [])) : [];
+      const descendants = new Set();
+      const findDescendants = (pid) => {
+        allTasks.forEach(t => {
+          if (t.parent_task_id === pid && !descendants.has(t.id)) {
+            descendants.add(t.id);
+            findDescendants(t.id);
+          }
+        });
+      };
+      findDescendants(taskId);
+      const parentOpts = '<option value="">(なし)</option>' +
+        allTasks.filter(t => t.id !== taskId && !descendants.has(t.id))
+          .map(t => `<option value="${escapeAttr(t.id)}" ${t.id === task.parent_task_id ? 'selected' : ''}>${escapeHtml(t.id + ' ' + (t.title || ''))}</option>`).join('');
+
       showModal('タスク編集', `
         <form id="form-edit-task" class="form">
           <div class="form-group">
@@ -491,6 +575,14 @@
           <div class="form-group">
             <label for="edit-status">ステータス</label>
             <select id="edit-status" name="status">${statusOpts}</select>
+          </div>
+          <div class="form-group">
+            <label for="edit-milestone">マイルストーン</label>
+            <select id="edit-milestone" name="milestone_id">${milestoneOpts}</select>
+          </div>
+          <div class="form-group">
+            <label for="edit-parent">親タスク</label>
+            <select id="edit-parent" name="parent_task_id">${parentOpts}</select>
           </div>
           <div class="form-group">
             <label for="edit-start-date">開始日 (YYYY-MM-DD)</label>
@@ -517,10 +609,14 @@
       form.addEventListener('submit', async (e) => {
         e.preventDefault();
         errEl.classList.add('hidden');
+        const milestoneVal = form.querySelector('#edit-milestone').value;
+        const parentVal = form.querySelector('#edit-parent').value;
         const body = {
           title: form.querySelector('#edit-title').value.trim(),
           description: form.querySelector('#edit-description').value.trim() || null,
           status: form.querySelector('#edit-status').value,
+          milestone_id: milestoneVal || null,
+          parent_task_id: parentVal || null,
           start_date: form.querySelector('#edit-start-date').value.trim() || null,
           due_date: form.querySelector('#edit-due-date').value.trim() || null,
           estimate_hours: (() => { const v = form.querySelector('#edit-estimate-hours').value.trim(); return v ? parseFloat(v) : null; })(),
@@ -648,7 +744,12 @@
     if (widthPct < 1) widthPct = 1;
     if (leftPct < 0) { widthPct += leftPct; leftPct = 0; }
     if (leftPct + widthPct > 100) widthPct = 100 - leftPct;
-    const barClass = isMilestone ? 'gantt-bar gantt-bar-milestone' : 'gantt-bar';
+    let barClass = 'gantt-bar';
+    if (isMilestone) {
+      barClass += ' gantt-bar-milestone';
+    } else if (item.status) {
+      barClass += ' gantt-bar-' + item.status.toLowerCase();
+    }
     return `<div class="${barClass}" style="left:${leftPct}%;width:${widthPct}%" title="${escapeAttr((item.start_date || '') + ' ～ ' + (item.due_date || ''))}"></div>`;
   }
 
@@ -692,7 +793,9 @@
       });
     }
     tasks.forEach(t => {
-      const label = escapeHtml(t.id) + ' ' + escapeHtml(t.title || '');
+      const statusClass = t.status ? 'gantt-status gantt-status-' + t.status.toLowerCase() : '';
+      const statusBadge = t.status ? `<span class="${statusClass}">${escapeHtml(t.status)}</span>` : '';
+      const label = escapeHtml(t.id) + ' ' + escapeHtml(t.title || '') + ' ' + statusBadge;
       const bar = renderGanttBar(rangeStart, rangeDays, dayWidth, t, false);
       html += `<div class="gantt-row"><div class="gantt-label" title="${escapeAttr(t.id)}">${label}</div><div class="gantt-bar-wrap">${todayLine}${bar}</div></div>`;
     });
