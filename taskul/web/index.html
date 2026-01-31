@@ -34,8 +34,13 @@
       <div id="board-lanes" class="board-lanes"></div>
     </section>
     <section id="view-gantt" class="view hidden">
-      <div class="board-toolbar">
+      <div class="board-toolbar gantt-toolbar">
         <button type="button" id="btn-back-gantt" class="btn-back">← ボードへ</button>
+        <label for="gantt-from">開始</label>
+        <input type="date" id="gantt-from" class="gantt-date">
+        <label for="gantt-to">終了</label>
+        <input type="date" id="gantt-to" class="gantt-date">
+        <button type="button" id="btn-gantt-apply" class="btn-primary">表示</button>
       </div>
       <div id="gantt-container" class="gantt-container"></div>
     </section>

@@ -441,18 +441,27 @@
     return isNaN(d.getTime()) ? null : d;
   }
 
+  function defaultGanttRange() {
+    const today = new Date();
+    const from = new Date(today);
+    from.setDate(from.getDate() - 14);
+    const to = new Date(today);
+    to.setDate(to.getDate() + 70);
+    return { fromStr: from.toISOString().slice(0, 10), toStr: to.toISOString().slice(0, 10) };
+  }
+
   async function showGantt() {
     if (!currentProjectId) return;
     showView(viewGantt);
+    const range = defaultGanttRange();
+    $('gantt-from').value = range.fromStr;
+    $('gantt-to').value = range.toStr;
+    await loadGanttWithRange(range.fromStr, range.toStr);
+  }
+
+  async function loadGanttWithRange(fromStr, toStr) {
     ganttContainer.innerHTML = '<div class="loading">読み込み中…</div>';
     try {
-      const today = new Date();
-      const from = new Date(today);
-      from.setDate(from.getDate() - 14);
-      const to = new Date(today);
-      to.setDate(to.getDate() + 70);
-      const fromStr = from.toISOString().slice(0, 10);
-      const toStr = to.toISOString().slice(0, 10);
       const tasks = await fetchJSON('/projects/' + encodeURIComponent(currentProjectId) + '/gantt?from_date=' + fromStr + '&to_date=' + toStr);
       renderGantt(tasks, fromStr, toStr);
     } catch (e) {
@@ -469,6 +478,10 @@
     const rangeEnd = parseDate(rangeTo).getTime();
     const rangeDays = (rangeEnd - rangeStart) / (24 * 60 * 60 * 1000) || 1;
     const dayWidth = 100 / rangeDays;
+    const todayMs = new Date(new Date().toISOString().slice(0, 10)).getTime();
+    const todayPct = rangeDays > 0 ? ((todayMs - rangeStart) / (24 * 60 * 60 * 1000)) * dayWidth : null;
+    const showToday = todayPct != null && todayPct >= 0 && todayPct <= 100;
+    const todayLineStyle = showToday ? `left:${todayPct}%` : '';
     const rows = tasks.map(t => {
       const start = parseDate(t.start_date) || parseDate(t.due_date) || new Date();
       const end = parseDate(t.due_date) || parseDate(t.start_date) || new Date(start.getTime() + 24 * 60 * 60 * 1000);
@@ -480,7 +493,8 @@
       if (leftPct < 0) { widthPct += leftPct; leftPct = 0; }
       if (leftPct + widthPct > 100) widthPct = 100 - leftPct;
       const label = escapeHtml(t.id) + ' ' + escapeHtml(t.title || '');
-      return `<div class="gantt-row"><div class="gantt-label" title="${escapeAttr(t.id)}">${label}</div><div class="gantt-bar-wrap"><div class="gantt-bar" style="left:${leftPct}%;width:${widthPct}%" title="${escapeAttr((t.start_date || '') + ' ～ ' + (t.due_date || ''))}"></div></div></div>`;
+      const todayLine = showToday ? `<div class="gantt-today-line" style="${todayLineStyle}" title="今日"></div>` : '';
+      return `<div class="gantt-row"><div class="gantt-label" title="${escapeAttr(t.id)}">${label}</div><div class="gantt-bar-wrap">${todayLine}<div class="gantt-bar" style="left:${leftPct}%;width:${widthPct}%" title="${escapeAttr((t.start_date || '') + ' ～ ' + (t.due_date || ''))}"></div></div></div>`;
     });
     const weeks = [];
     let d = new Date(parseDate(rangeFrom).getTime());
@@ -489,7 +503,8 @@
       weeks.push('<span class="gantt-week">' + d.toISOString().slice(0, 10) + '</span>');
       d = new Date(d.getTime() + 7 * 24 * 60 * 60 * 1000);
     }
-    ganttContainer.innerHTML = '<div class="gantt-header"><div class="gantt-label gantt-label-head">タスク</div><div class="gantt-weeks">' + weeks.join('') + '</div></div>' + rows.join('');
+    const headerTodayLine = showToday ? `<div class="gantt-today-line" style="${todayLineStyle}" title="今日"></div>` : '';
+    ganttContainer.innerHTML = '<div class="gantt-header"><div class="gantt-label gantt-label-head">タスク</div><div class="gantt-chart-area"><div class="gantt-weeks">' + weeks.join('') + '</div>' + headerTodayLine + '</div></div>' + rows.join('');
   }
 
   async function removeDependency(fromTaskId, toTaskId) {
@@ -521,6 +536,20 @@
   $('btn-add-dependency').addEventListener('click', openAddDependencyModal);
   $('btn-gantt').addEventListener('click', showGantt);
   $('btn-back-gantt').addEventListener('click', backToBoard);
+  $('btn-gantt-apply').addEventListener('click', async () => {
+    if (!currentProjectId) return;
+    const fromStr = $('gantt-from').value.trim();
+    const toStr = $('gantt-to').value.trim();
+    if (!fromStr || !toStr) {
+      showToast('開始日・終了日を入力してください', true);
+      return;
+    }
+    if (fromStr > toStr) {
+      showToast('開始日は終了日より前にしてください', true);
+      return;
+    }
+    await loadGanttWithRange(fromStr, toStr);
+  });
   $('btn-blockers').addEventListener('click', showBlockers);
   $('btn-back-blockers').addEventListener('click', backToBoard);
 

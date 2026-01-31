@@ -245,6 +245,22 @@ main { padding: 1rem; max-width: 1600px; margin: 0 auto; }
 .form-actions .btn-submit:hover, .form-actions .btn-cancel:hover { opacity: 0.9; }
 .form-error { color: #f7768e; font-size: 0.85rem; margin-top: 0.25rem; }
 
+.gantt-toolbar {
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+.gantt-toolbar label { font-size: 0.9rem; color: var(--muted); }
+.gantt-date {
+  padding: 0.35rem 0.5rem;
+  background: var(--lane-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 4px;
+  color: var(--text);
+  font-size: 0.9rem;
+}
+.gantt-date:focus { outline: none; border-color: var(--accent); }
+
 .gantt-container {
   overflow-x: auto;
   margin-top: 0.5rem;
@@ -264,10 +280,25 @@ main { padding: 1rem; max-width: 1600px; margin: 0 auto; }
   font-size: 0.85rem;
   color: var(--muted);
 }
+.gantt-chart-area {
+  flex: 1;
+  position: relative;
+  min-width: 0;
+  display: flex;
+}
 .gantt-weeks {
   flex: 1;
   display: flex;
   min-width: 0;
+}
+.gantt-today-line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: #f7768e;
+  pointer-events: none;
+  z-index: 1;
 }
 .gantt-week {
   flex: 1;
