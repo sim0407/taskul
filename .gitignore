@@ -65,6 +65,10 @@ CLAUDE.md
 .DS_Store
 Thumbs.db
 
+# --- Node.js ---
+node_modules/
+package-lock.json
+
 # --- その他 ---
 *.log
 *.tmp

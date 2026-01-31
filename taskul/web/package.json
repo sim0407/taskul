@@ -1,0 +1,13 @@
+{
+  "name": "taskul-web",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "build": "tsc && cp src/app.js .",
+    "watch": "tsc --watch",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.0"
+  }
+}
