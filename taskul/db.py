@@ -14,7 +14,9 @@ _MIGRATIONS_DIR = Path(__file__).resolve().parent.parent / "schema" / "migration
 def get_connection(db_path: str | None = None) -> sqlite3.Connection:
     path = db_path or DEFAULT_DB_PATH
     Path(path).parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(path)
+    # check_same_thread=False: FastAPI runs endpoints in a threadpool, so the connection
+    # created in the dependency may be used from a different thread.
+    conn = sqlite3.connect(path, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     return conn
 
