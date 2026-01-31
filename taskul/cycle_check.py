@@ -50,10 +50,15 @@ def would_create_parent_cycle(
     """
     Returns True if setting task_id's parent_task_id to new_parent_id would create a cycle
     (task would become its own ancestor). Also returns True if task_id == new_parent_id.
+
+    Cycle occurs when new_parent_id's ancestor chain contains task_id.
+    Example: If C -> D -> A (C's parent is D, D's parent is A),
+    setting A's parent to C would create A -> C -> D -> A cycle.
     """
     if task_id == new_parent_id:
         return True
     if not new_parent_id:
         return False
-    ancestors = get_task_parent_chain(conn, task_id)
-    return new_parent_id in ancestors
+    # Check if task_id is in new_parent_id's ancestor chain
+    ancestors_of_new_parent = get_task_parent_chain(conn, new_parent_id)
+    return task_id in ancestors_of_new_parent
