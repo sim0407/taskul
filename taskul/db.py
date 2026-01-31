@@ -6,6 +6,7 @@ from pathlib import Path
 DEFAULT_DB_PATH = os.environ.get("TASKUL_DB", str(Path.home() / ".taskul" / "taskul.db"))
 
 _SCHEMA_SQL_PATH = Path(__file__).resolve().parent.parent / "schema" / "init.sql"
+_MIGRATIONS_DIR = Path(__file__).resolve().parent.parent / "schema" / "migrations"
 
 
 def get_connection(db_path: str | None = None) -> sqlite3.Connection:
@@ -28,6 +29,15 @@ def ensure_schema(conn: sqlite3.Connection) -> None:
     )
     if cur.fetchone() is None:
         init_schema(conn)
+        return
+    # Migration: milestones and task.milestone_id, parent_task_id
+    cur = conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='milestones'"
+    )
+    if cur.fetchone() is None and _MIGRATIONS_DIR.joinpath("001_milestone_subtask.sql").exists():
+        migration_sql = _MIGRATIONS_DIR.joinpath("001_milestone_subtask.sql").read_text(encoding="utf-8")
+        conn.executescript(migration_sql)
+        conn.commit()
 
 
 def next_id(conn: sqlite3.Connection, prefix: str) -> str:
@@ -48,6 +58,8 @@ def next_id(conn: sqlite3.Connection, prefix: str) -> str:
         (prefix,),
     )
     width = 6 if prefix == "T" else 4
+    if prefix == "M":
+        width = 4
     return f"{prefix}-{next_val:0{width}d}"
 
 
@@ -66,11 +78,114 @@ def get_project(conn: sqlite3.Connection, project_id: str) -> dict | None:
     return {"id": row["id"], "name": row["name"]}
 
 
+def row_to_milestone(row) -> dict | None:
+    """Convert a milestones table row to a milestone dict."""
+    if row is None:
+        return None
+    return {
+        "id": row["id"],
+        "project_id": row["project_id"],
+        "title": row["title"],
+        "start_date": row["start_date"],
+        "due_date": row["due_date"],
+    }
+
+
+def get_milestones(conn: sqlite3.Connection, project_id: str) -> list[dict] | None:
+    """List milestones of a project (by start_date). Returns None if project not found."""
+    cur = conn.execute("SELECT id FROM projects WHERE id = ?", (project_id,))
+    if cur.fetchone() is None:
+        return None
+    cur = conn.execute(
+        "SELECT * FROM milestones WHERE project_id = ? ORDER BY start_date, id",
+        (project_id,),
+    )
+    return [row_to_milestone(r) for r in cur.fetchall()]
+
+
+def get_milestone(conn: sqlite3.Connection, milestone_id: str) -> dict | None:
+    """Get a single milestone by id. Returns None if not found."""
+    cur = conn.execute("SELECT * FROM milestones WHERE id = ?", (milestone_id,))
+    return row_to_milestone(cur.fetchone())
+
+
+def create_milestone(
+    conn: sqlite3.Connection,
+    project_id: str,
+    title: str,
+    start_date: str,
+    due_date: str,
+) -> dict:
+    """Create a milestone. Caller must commit. Raises ValueError on validation error."""
+    if start_date > due_date:
+        raise ValueError("start_date must be <= due_date")
+    cur = conn.execute("SELECT id FROM projects WHERE id = ?", (project_id,))
+    if cur.fetchone() is None:
+        raise ValueError(f"project not found: {project_id}")
+    mid = next_id(conn, "M")
+    conn.execute(
+        "INSERT INTO milestones (id, project_id, title, start_date, due_date) VALUES (?, ?, ?, ?, ?)",
+        (mid, project_id, title, start_date, due_date),
+    )
+    return {"id": mid, "project_id": project_id, "title": title, "start_date": start_date, "due_date": due_date}
+
+
+def update_milestone(
+    conn: sqlite3.Connection,
+    milestone_id: str,
+    *,
+    title: str | None = None,
+    start_date: str | None = None,
+    due_date: str | None = None,
+) -> dict:
+    """Update a milestone. Caller must commit. Returns updated milestone or raises ValueError."""
+    m = get_milestone(conn, milestone_id)
+    if m is None:
+        raise ValueError(f"milestone not found: {milestone_id}")
+    updates, params = [], []
+    if title is not None:
+        updates.append("title = ?")
+        params.append(title)
+    if start_date is not None:
+        updates.append("start_date = ?")
+        params.append(start_date)
+    if due_date is not None:
+        updates.append("due_date = ?")
+        params.append(due_date)
+    if updates:
+        start = start_date if start_date is not None else m["start_date"]
+        due = due_date if due_date is not None else m["due_date"]
+        if start > due:
+            raise ValueError("start_date must be <= due_date")
+        params.append(milestone_id)
+        conn.execute("UPDATE milestones SET " + ", ".join(updates) + " WHERE id = ?", params)
+    cur = conn.execute("SELECT * FROM milestones WHERE id = ?", (milestone_id,))
+    return row_to_milestone(cur.fetchone())
+
+
+def get_task_parent_chain(conn: sqlite3.Connection, task_id: str) -> list[str]:
+    """Return list of ancestor task ids (task_id's parent, grandparent, ...). Empty if no parent."""
+    out = []
+    cur = conn.execute("SELECT parent_task_id FROM tasks WHERE id = ?", (task_id,))
+    row = cur.fetchone()
+    if row is None:
+        return out
+    pid = row["parent_task_id"] if "parent_task_id" in row.keys() else None
+    seen = {task_id}
+    while pid and pid not in seen:
+        seen.add(pid)
+        out.append(pid)
+        cur = conn.execute("SELECT parent_task_id FROM tasks WHERE id = ?", (pid,))
+        row = cur.fetchone()
+        pid = row["parent_task_id"] if row and "parent_task_id" in row.keys() else None
+    return out
+
+
 def row_to_task(row) -> dict:
     """Convert a tasks table row to a task dict (for JSON / API)."""
     if row is None:
         return None
-    return {
+    out = {
         "id": row["id"],
         "project_id": row["project_id"],
         "title": row["title"],
@@ -82,6 +197,11 @@ def row_to_task(row) -> dict:
         "estimate_hours": row["estimate_hours"] if row["estimate_hours"] is not None else None,
         "created_at": row["created_at"],
     }
+    if "milestone_id" in row.keys():
+        out["milestone_id"] = row["milestone_id"] or None
+    if "parent_task_id" in row.keys():
+        out["parent_task_id"] = row["parent_task_id"] or None
+    return out
 
 
 def get_task(conn: sqlite3.Connection, task_id: str) -> dict | None:

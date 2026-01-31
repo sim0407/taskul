@@ -91,6 +91,27 @@ python3 -m taskul list-blockers P-0001
 # 履歴（監査ログ）
 python3 -m taskul get-events [--project-id P-0001] [--type TASK_CREATED] [--limit 50]
 # JSON: 末尾に --json-output
+
+# マイルストーン一覧
+python3 -m taskul get-milestones P-0001
+# JSON: python3 -m taskul get-milestones P-0001 --json-output
+```
+
+### マイルストーン・サブタスク
+
+```bash
+# マイルストーン作成（開始日 ≦ 終了日）
+python3 -m taskul create-milestone P-0001 "Release 1" 2025-02-01 2025-02-28
+
+# マイルストーン更新
+python3 -m taskul update-milestone M-0001 --title "Release 1.0" --due-date 2025-03-01
+
+# タスクにマイルストーンを紐付け（作成時または update-task --milestone-id M-0001）
+python3 -m taskul create-task P-0001 "タスク" --milestone-id M-0001
+
+# サブタスク（親タスクを 1 つ指定。親子の循環は拒否）
+python3 -m taskul create-task P-0001 "子タスク" --parent-task-id T-000001
+# 解除: python3 -m taskul update-task T-000002 --parent-task-id ""
 ```
 
 ### 更新・移動・依存
@@ -138,9 +159,13 @@ uvicorn taskul.api.app:app --host 127.0.0.1 --port 8000
 | `GET /projects/{id}/board` | ボード取得 |
 | `GET /projects/{id}/gantt` | Gantt データ（query: from_date, to_date） |
 | `GET /projects/{id}/blockers` | ブロッカー一覧 |
+| `GET /projects/{id}/milestones` | マイルストーン一覧 |
+| `POST /projects/{id}/milestones` | マイルストーン作成（body: `title`, `start_date`, `due_date`） |
+| `GET /milestones/{id}` | マイルストーン取得 |
+| `PATCH /milestones/{id}` | マイルストーン更新（body: 任意フィールド） |
 | `GET /tasks/{id}` | タスク取得 |
-| `POST /tasks` | タスク作成（body: `{"project_id","title","status"?}`） |
-| `PATCH /tasks/{id}` | タスク更新（body: 任意フィールド） |
+| `POST /tasks` | タスク作成（body: `project_id`, `title`; 任意: `status`, `milestone_id`, `parent_task_id`） |
+| `PATCH /tasks/{id}` | タスク更新（body: 任意フィールド。`milestone_id`/`parent_task_id` を null で解除） |
 | `POST /tasks/{id}/move` | タスク移動（body: `{"status","position"?}`） |
 | `POST /tasks/{id}/mark-done` | タスクを Done に |
 | `POST /dependencies` | 依存追加（body: `{"from_task_id","to_task_id"}`） |

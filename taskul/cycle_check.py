@@ -1,9 +1,9 @@
-"""Dependency cycle detection. Used by add_dependency to reject cycles."""
+"""Dependency cycle detection and parent-chain cycle detection."""
 from __future__ import annotations
 
 import sqlite3
 
-from .db import get_all_dependencies
+from .db import get_all_dependencies, get_task_parent_chain
 
 
 def would_create_cycle(
@@ -40,3 +40,20 @@ def would_create_cycle(
         return False
 
     return reachable(to_task_id, from_task_id)
+
+
+def would_create_parent_cycle(
+    conn: sqlite3.Connection,
+    task_id: str,
+    new_parent_id: str,
+) -> bool:
+    """
+    Returns True if setting task_id's parent_task_id to new_parent_id would create a cycle
+    (task would become its own ancestor). Also returns True if task_id == new_parent_id.
+    """
+    if task_id == new_parent_id:
+        return True
+    if not new_parent_id:
+        return False
+    ancestors = get_task_parent_chain(conn, task_id)
+    return new_parent_id in ancestors

@@ -7,7 +7,19 @@ CREATE TABLE IF NOT EXISTS projects (
   name TEXT NOT NULL
 );
 
--- Tasks (status lane + rank unique per project+status)
+-- Milestones (title + date range per project)
+CREATE TABLE IF NOT EXISTS milestones (
+  id TEXT PRIMARY KEY,
+  project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  start_date TEXT NOT NULL,
+  due_date TEXT NOT NULL,
+  CHECK (start_date <= due_date)
+);
+
+CREATE INDEX IF NOT EXISTS idx_milestones_project ON milestones(project_id);
+
+-- Tasks (status lane + rank unique per project+status; optional milestone, optional parent for subtasks)
 CREATE TABLE IF NOT EXISTS tasks (
   id TEXT PRIMARY KEY,
   project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
@@ -18,6 +30,8 @@ CREATE TABLE IF NOT EXISTS tasks (
   start_date TEXT,
   due_date TEXT,
   estimate_hours REAL,
+  milestone_id TEXT REFERENCES milestones(id) ON DELETE SET NULL,
+  parent_task_id TEXT REFERENCES tasks(id) ON DELETE SET NULL,
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
   UNIQUE(project_id, status, rank)
 );
@@ -49,4 +63,4 @@ CREATE TABLE IF NOT EXISTS id_sequences (
   prefix TEXT PRIMARY KEY,
   next_value INTEGER NOT NULL DEFAULT 1
 );
-INSERT OR IGNORE INTO id_sequences (prefix, next_value) VALUES ('T', 1), ('P', 1);
+INSERT OR IGNORE INTO id_sequences (prefix, next_value) VALUES ('T', 1), ('P', 1), ('M', 1);
