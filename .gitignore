@@ -54,8 +54,12 @@ coverage.xml
 *.swo
 *~
 
-# --- Cursor（開発者用 skills） ---
-.cursor/skills/
+# --- Cursor ---
+.cursor/
+
+# --- Claude Code ---
+.claude/
+CLAUDE.md
 
 # --- OS ---
 .DS_Store
