@@ -54,6 +54,9 @@ coverage.xml
 *.swo
 *~
 
+# --- Cursor（開発者用 skills） ---
+.cursor/skills/
+
 # --- OS ---
 .DS_Store
 Thumbs.db
