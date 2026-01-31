@@ -117,7 +117,7 @@ def update_task_impl(
     conn.commit()
 
     cur = conn.execute("SELECT * FROM tasks WHERE id = ?", (task_id,))
-    return row_to_task(cur.fetchone())
+    return row_to_task(cur.fetchone(), conn)
 
 
 @click.command("update-task")

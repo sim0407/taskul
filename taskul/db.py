@@ -205,20 +205,38 @@ def get_task_parent_chain(conn: sqlite3.Connection, task_id: str) -> list[str]:
     return out
 
 
-def row_to_task(row) -> dict:
-    """Convert a tasks table row to a task dict (for JSON / API)."""
+def row_to_task(row, conn: sqlite3.Connection = None) -> dict:
+    """Convert a tasks table row to a task dict (for JSON / API).
+
+    If conn is provided, calculates estimate_hours for parent tasks
+    as the sum of children's estimate_hours.
+    """
     if row is None:
         return None
     keys = row.keys()
+    task_id = row["id"]
+    estimate_hours = row["estimate_hours"] if row["estimate_hours"] is not None else None
+
+    # If conn is provided, check if this task has children and calculate sum
+    if conn is not None:
+        cur = conn.execute(
+            "SELECT SUM(estimate_hours) as total FROM tasks WHERE parent_task_id = ?",
+            (task_id,)
+        )
+        sum_row = cur.fetchone()
+        if sum_row and sum_row["total"] is not None:
+            # Task has children with estimate_hours, use the sum
+            estimate_hours = sum_row["total"]
+
     out = {
-        "id": row["id"],
+        "id": task_id,
         "project_id": row["project_id"],
         "title": row["title"],
         "description": row["description"] or None,
         "status": row["status"],
         "start_date": row["start_date"] or None,
         "due_date": row["due_date"] or None,
-        "estimate_hours": row["estimate_hours"] if row["estimate_hours"] is not None else None,
+        "estimate_hours": estimate_hours,
         "created_at": row["created_at"],
     }
     if "milestone_id" in keys:
@@ -234,7 +252,7 @@ def get_task(conn: sqlite3.Connection, task_id: str) -> dict | None:
     """Get a single task by id. Returns None if not found."""
     cur = conn.execute("SELECT * FROM tasks WHERE id = ?", (task_id,))
     row = cur.fetchone()
-    return row_to_task(row)
+    return row_to_task(row, conn)
 
 
 def get_board(conn: sqlite3.Connection, project_id: str) -> dict | None:
@@ -253,7 +271,7 @@ def get_board(conn: sqlite3.Connection, project_id: str) -> dict | None:
                ORDER BY start_date NULLS LAST, due_date NULLS LAST, created_at""",
             (project_id, status),
         )
-        lanes[status] = [row_to_task(row) for row in cur.fetchall()]
+        lanes[status] = [row_to_task(row, conn) for row in cur.fetchall()]
     return {"project_id": project_id, "lanes": lanes}
 
 
@@ -281,9 +299,9 @@ def get_gantt(
     if to_date:
         sql += " AND (start_date IS NULL OR start_date <= ?)"
         params.append(to_date)
-    sql += " ORDER BY start_date, rank"
+    sql += " ORDER BY start_date, created_at"
     cur = conn.execute(sql, params)
-    return [row_to_task(row) for row in cur.fetchall()]
+    return [row_to_task(row, conn) for row in cur.fetchall()]
 
 
 def list_blockers(conn: sqlite3.Connection, project_id: str) -> list:
