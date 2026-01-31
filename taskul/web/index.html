@@ -32,6 +32,17 @@
         <button type="button" id="btn-new-task" class="btn-primary">タスク追加</button>
         <button type="button" id="btn-add-dependency" class="btn-back">依存を追加</button>
       </div>
+      <div class="board-filters">
+        <label for="board-filter-milestone">マイルストーン</label>
+        <select id="board-filter-milestone" class="filter-select" title="表示するタスクをマイルストーンで絞り込み">
+          <option value="">すべて</option>
+        </select>
+        <label for="board-filter-parent">親タスク</label>
+        <select id="board-filter-parent" class="filter-select" title="表示するタスクを親タスクで絞り込み">
+          <option value="">すべて</option>
+          <option value="__root__">ルートのみ</option>
+        </select>
+      </div>
       <div id="board-lanes" class="board-lanes"></div>
     </section>
     <section id="view-gantt" class="view hidden">
@@ -42,6 +53,17 @@
         <label for="gantt-to">終了</label>
         <input type="date" id="gantt-to" class="gantt-date">
         <button type="button" id="btn-gantt-apply" class="btn-primary">表示</button>
+      </div>
+      <div class="board-filters gantt-filters">
+        <label for="gantt-filter-milestone">マイルストーン</label>
+        <select id="gantt-filter-milestone" class="filter-select" title="表示するタスクをマイルストーンで絞り込み">
+          <option value="">すべて</option>
+        </select>
+        <label for="gantt-filter-parent">親タスク</label>
+        <select id="gantt-filter-parent" class="filter-select" title="表示するタスクを親タスクで絞り込み">
+          <option value="">すべて</option>
+          <option value="__root__">ルートのみ</option>
+        </select>
       </div>
       <div id="gantt-container" class="gantt-container"></div>
     </section>

@@ -21,6 +21,10 @@
   let currentProjectId = null;
   let currentProjectName = null;
   let lastBoard = null;
+  let lastBoardMilestones = [];
+  let lastGanttTasks = [];
+  let lastGanttMilestones = [];
+  let lastGanttRange = { fromStr: '', toStr: '' };
 
   function showView(view) {
     [viewProjects, viewBoard, viewGantt, viewBlockers].forEach(el => el.classList.add('hidden'));
@@ -272,6 +276,41 @@
     });
   }
 
+  function applyTaskFilters(tasks, milestoneId, parentValue) {
+    return tasks.filter(t => {
+      if (milestoneId && (t.milestone_id || '') !== milestoneId) return false;
+      if (parentValue === '__root__') { if (t.parent_task_id) return false; }
+      else if (parentValue && (t.parent_task_id || '') !== parentValue) return false;
+      return true;
+    });
+  }
+
+  function fillBoardFilterSelects(board, milestones) {
+    lastBoardMilestones = milestones || [];
+    const msSelect = $('board-filter-milestone');
+    const curMs = msSelect.value;
+    msSelect.innerHTML = '<option value="">すべて</option>' +
+      lastBoardMilestones.map(m => `<option value="${escapeAttr(m.id)}">${escapeHtml(m.title || m.id)}</option>`).join('');
+    if (curMs) msSelect.value = curMs;
+
+    const flat = STATUSES.flatMap(s => (board.lanes[s] || []).map(t => ({ id: t.id, title: t.title })));
+    const parentSelect = $('board-filter-parent');
+    const curParent = parentSelect.value;
+    parentSelect.innerHTML = '<option value="">すべて</option><option value="__root__">ルートのみ</option>' +
+      flat.map(t => `<option value="${escapeAttr(t.id)}">${escapeHtml(t.id + ' ' + (t.title || ''))}</option>`).join('');
+    if (curParent) parentSelect.value = curParent;
+  }
+
+  function getFilteredBoard(board, milestoneId, parentValue) {
+    if (!milestoneId && !parentValue) return board;
+    const lanes = {};
+    STATUSES.forEach(status => {
+      const raw = board.lanes[status] || [];
+      lanes[status] = applyTaskFilters(raw, milestoneId, parentValue);
+    });
+    return { project_id: board.project_id, lanes };
+  }
+
   async function openBoard(projectId, projectName) {
     currentProjectId = projectId;
     currentProjectName = projectName || projectId;
@@ -279,8 +318,13 @@
     boardLanes.innerHTML = '<div class="loading">ボード読み込み中…</div>';
     showView(viewBoard);
     try {
-      const board = await fetchJSON('/projects/' + encodeURIComponent(projectId) + '/board');
-      renderBoard(board);
+      const [board, milestones] = await Promise.all([
+        fetchJSON('/projects/' + encodeURIComponent(projectId) + '/board'),
+        fetchJSON('/projects/' + encodeURIComponent(projectId) + '/milestones').catch(() => []),
+      ]);
+      lastBoard = board;
+      fillBoardFilterSelects(board, milestones);
+      renderBoardWithFilters();
     } catch (e) {
       boardLanes.innerHTML = '<div class="error">読み込み失敗: ' + escapeHtml(e.message) + '</div>';
     }
@@ -289,15 +333,23 @@
   async function refreshBoard() {
     if (!currentProjectId) return;
     try {
-      const board = await fetchJSON('/projects/' + encodeURIComponent(currentProjectId) + '/board');
-      renderBoard(board);
+      const [board, milestones] = await Promise.all([
+        fetchJSON('/projects/' + encodeURIComponent(currentProjectId) + '/board'),
+        fetchJSON('/projects/' + encodeURIComponent(currentProjectId) + '/milestones').catch(() => []),
+      ]);
+      lastBoard = board;
+      fillBoardFilterSelects(board, milestones);
+      renderBoardWithFilters();
     } catch (e) {
       showToast(e.message, true);
     }
   }
 
-  function renderBoard(board) {
-    lastBoard = board;
+  function renderBoardWithFilters() {
+    if (!lastBoard) return;
+    const milestoneId = ($('board-filter-milestone') && $('board-filter-milestone').value) || '';
+    const parentValue = ($('board-filter-parent') && $('board-filter-parent').value) || '';
+    const board = getFilteredBoard(lastBoard, milestoneId, parentValue);
     const statuses = STATUSES;
     boardLanes.innerHTML = statuses.map(status => {
       const tasks = board.lanes[status] || [];
@@ -310,6 +362,11 @@
     boardLanes.querySelectorAll('.btn-card-edit').forEach(btn => {
       btn.addEventListener('click', () => openEditTaskModal(btn.dataset.taskId));
     });
+  }
+
+  function renderBoard(board) {
+    lastBoard = board;
+    renderBoardWithFilters();
   }
 
   function renderCard(t, currentStatus) {
@@ -472,6 +529,27 @@
     await loadGanttWithRange(range.fromStr, range.toStr);
   }
 
+  function fillGanttFilterSelects(tasks, milestones) {
+    const msSelect = $('gantt-filter-milestone');
+    const curMs = msSelect.value;
+    msSelect.innerHTML = '<option value="">すべて</option>' +
+      (milestones || []).map(m => `<option value="${escapeAttr(m.id)}">${escapeHtml(m.title || m.id)}</option>`).join('');
+    if (curMs) msSelect.value = curMs;
+
+    const parentSelect = $('gantt-filter-parent');
+    const curParent = parentSelect.value;
+    parentSelect.innerHTML = '<option value="">すべて</option><option value="__root__">ルートのみ</option>' +
+      (tasks || []).map(t => `<option value="${escapeAttr(t.id)}">${escapeHtml(t.id + ' ' + (t.title || ''))}</option>`).join('');
+    if (curParent) parentSelect.value = curParent;
+  }
+
+  function applyGanttFiltersAndRender() {
+    const milestoneId = ($('gantt-filter-milestone') && $('gantt-filter-milestone').value) || '';
+    const parentValue = ($('gantt-filter-parent') && $('gantt-filter-parent').value) || '';
+    const filtered = applyTaskFilters(lastGanttTasks, milestoneId, parentValue);
+    renderGantt(filtered, lastGanttMilestones, lastGanttRange.fromStr, lastGanttRange.toStr);
+  }
+
   async function loadGanttWithRange(fromStr, toStr) {
     ganttContainer.innerHTML = '<div class="loading">読み込み中…</div>';
     try {
@@ -479,7 +557,11 @@
         fetchJSON('/projects/' + encodeURIComponent(currentProjectId) + '/gantt?from_date=' + fromStr + '&to_date=' + toStr),
         fetchJSON('/projects/' + encodeURIComponent(currentProjectId) + '/milestones'),
       ]);
-      renderGantt(tasks, milestones, fromStr, toStr);
+      lastGanttTasks = tasks;
+      lastGanttMilestones = milestones || [];
+      lastGanttRange = { fromStr, toStr };
+      fillGanttFilterSelects(tasks, milestones);
+      applyGanttFiltersAndRender();
     } catch (e) {
       ganttContainer.innerHTML = '<div class="error">読み込み失敗: ' + escapeHtml(e.message) + '</div>';
     }
@@ -575,6 +657,9 @@
   $('btn-seed-project').addEventListener('click', createSeedProject);
   $('btn-new-task').addEventListener('click', openNewTaskModal);
   $('btn-add-dependency').addEventListener('click', openAddDependencyModal);
+  $('board-filter-milestone').addEventListener('change', renderBoardWithFilters);
+  $('board-filter-parent').addEventListener('change', renderBoardWithFilters);
+
   $('btn-gantt').addEventListener('click', showGantt);
   $('btn-back-gantt').addEventListener('click', backToBoard);
   $('btn-gantt-apply').addEventListener('click', async () => {
@@ -591,6 +676,9 @@
     }
     await loadGanttWithRange(fromStr, toStr);
   });
+  $('gantt-filter-milestone').addEventListener('change', applyGanttFiltersAndRender);
+  $('gantt-filter-parent').addEventListener('change', applyGanttFiltersAndRender);
+
   $('btn-blockers').addEventListener('click', showBlockers);
   $('btn-back-blockers').addEventListener('click', backToBoard);
 
