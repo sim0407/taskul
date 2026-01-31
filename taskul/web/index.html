@@ -42,6 +42,10 @@
           <option value="">すべて</option>
           <option value="__root__">ルートのみ</option>
         </select>
+        <label for="board-filter-depth">階層</label>
+        <select id="board-filter-depth" class="filter-select" title="表示するタスクを階層で絞り込み">
+          <option value="">すべて</option>
+        </select>
       </div>
       <div id="board-lanes" class="board-lanes"></div>
     </section>
@@ -63,6 +67,10 @@
         <select id="gantt-filter-parent" class="filter-select" title="表示するタスクを親タスクで絞り込み">
           <option value="">すべて</option>
           <option value="__root__">ルートのみ</option>
+        </select>
+        <label for="gantt-filter-depth">階層</label>
+        <select id="gantt-filter-depth" class="filter-select" title="表示するタスクを階層で絞り込み">
+          <option value="">すべて</option>
         </select>
       </div>
       <div id="gantt-container" class="gantt-container"></div>

@@ -323,11 +323,15 @@
     });
   }
 
-  function applyTaskFilters(tasks, milestoneId, parentValue) {
+  function applyTaskFilters(tasks, milestoneId, parentValue, depthValue) {
     return tasks.filter(t => {
       if (milestoneId && (t.milestone_id || '') !== milestoneId) return false;
       if (parentValue === '__root__') { if (t.parent_task_id) return false; }
       else if (parentValue && (t.parent_task_id || '') !== parentValue) return false;
+      if (depthValue !== '' && depthValue !== undefined) {
+        const depthNum = parseInt(depthValue, 10);
+        if (!isNaN(depthNum) && (t.depth ?? 0) !== depthNum) return false;
+      }
       return true;
     });
   }
@@ -340,20 +344,27 @@
       lastBoardMilestones.map(m => `<option value="${escapeAttr(m.id)}">${escapeHtml(m.title || m.id)}</option>`).join('');
     if (curMs) msSelect.value = curMs;
 
-    const flat = STATUSES.flatMap(s => (board.lanes[s] || []).map(t => ({ id: t.id, title: t.title })));
+    const flat = STATUSES.flatMap(s => (board.lanes[s] || []).map(t => ({ id: t.id, title: t.title, depth: t.depth })));
     const parentSelect = $('board-filter-parent');
     const curParent = parentSelect.value;
     parentSelect.innerHTML = '<option value="">すべて</option><option value="__root__">ルートのみ</option>' +
       flat.map(t => `<option value="${escapeAttr(t.id)}">${escapeHtml(t.id + ' ' + (t.title || ''))}</option>`).join('');
     if (curParent) parentSelect.value = curParent;
+
+    const depthSelect = $('board-filter-depth');
+    const curDepth = depthSelect.value;
+    const depths = [...new Set(flat.map(t => t.depth ?? 0))].sort((a, b) => a - b);
+    depthSelect.innerHTML = '<option value="">すべて</option>' +
+      depths.map(d => `<option value="${d}">${d}</option>`).join('');
+    if (curDepth) depthSelect.value = curDepth;
   }
 
-  function getFilteredBoard(board, milestoneId, parentValue) {
-    if (!milestoneId && !parentValue) return board;
+  function getFilteredBoard(board, milestoneId, parentValue, depthValue) {
+    if (!milestoneId && !parentValue && depthValue === '') return board;
     const lanes = {};
     STATUSES.forEach(status => {
       const raw = board.lanes[status] || [];
-      lanes[status] = applyTaskFilters(raw, milestoneId, parentValue);
+      lanes[status] = applyTaskFilters(raw, milestoneId, parentValue, depthValue);
     });
     return { project_id: board.project_id, lanes };
   }
@@ -396,7 +407,8 @@
     if (!lastBoard) return;
     const milestoneId = ($('board-filter-milestone') && $('board-filter-milestone').value) || '';
     const parentValue = ($('board-filter-parent') && $('board-filter-parent').value) || '';
-    const board = getFilteredBoard(lastBoard, milestoneId, parentValue);
+    const depthValue = ($('board-filter-depth') && $('board-filter-depth').value) || '';
+    const board = getFilteredBoard(lastBoard, milestoneId, parentValue, depthValue);
     const statuses = STATUSES;
     boardLanes.innerHTML = statuses.map(status => {
       const tasks = board.lanes[status] || [];
@@ -592,12 +604,20 @@
     parentSelect.innerHTML = '<option value="">すべて</option><option value="__root__">ルートのみ</option>' +
       (tasks || []).map(t => `<option value="${escapeAttr(t.id)}">${escapeHtml(t.id + ' ' + (t.title || ''))}</option>`).join('');
     if (curParent) parentSelect.value = curParent;
+
+    const depthSelect = $('gantt-filter-depth');
+    const curDepth = depthSelect.value;
+    const depths = [...new Set((tasks || []).map(t => t.depth ?? 0))].sort((a, b) => a - b);
+    depthSelect.innerHTML = '<option value="">すべて</option>' +
+      depths.map(d => `<option value="${d}">${d}</option>`).join('');
+    if (curDepth) depthSelect.value = curDepth;
   }
 
   function applyGanttFiltersAndRender() {
     const milestoneId = ($('gantt-filter-milestone') && $('gantt-filter-milestone').value) || '';
     const parentValue = ($('gantt-filter-parent') && $('gantt-filter-parent').value) || '';
-    const filtered = applyTaskFilters(lastGanttTasks, milestoneId, parentValue);
+    const depthValue = ($('gantt-filter-depth') && $('gantt-filter-depth').value) || '';
+    const filtered = applyTaskFilters(lastGanttTasks, milestoneId, parentValue, depthValue);
     renderGantt(filtered, lastGanttMilestones, lastGanttRange.fromStr, lastGanttRange.toStr);
   }
 
@@ -710,6 +730,7 @@
   $('btn-add-dependency').addEventListener('click', openAddDependencyModal);
   $('board-filter-milestone').addEventListener('change', renderBoardWithFilters);
   $('board-filter-parent').addEventListener('change', renderBoardWithFilters);
+  $('board-filter-depth').addEventListener('change', renderBoardWithFilters);
 
   $('btn-gantt').addEventListener('click', showGantt);
   $('btn-back-gantt').addEventListener('click', backToBoard);
@@ -729,6 +750,7 @@
   });
   $('gantt-filter-milestone').addEventListener('change', applyGanttFiltersAndRender);
   $('gantt-filter-parent').addEventListener('change', applyGanttFiltersAndRender);
+  $('gantt-filter-depth').addEventListener('change', applyGanttFiltersAndRender);
 
   $('btn-blockers').addEventListener('click', showBlockers);
   $('btn-back-blockers').addEventListener('click', backToBoard);
