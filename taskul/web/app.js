@@ -462,18 +462,31 @@
   async function loadGanttWithRange(fromStr, toStr) {
     ganttContainer.innerHTML = '<div class="loading">読み込み中…</div>';
     try {
-      const tasks = await fetchJSON('/projects/' + encodeURIComponent(currentProjectId) + '/gantt?from_date=' + fromStr + '&to_date=' + toStr);
-      renderGantt(tasks, fromStr, toStr);
+      const [tasks, milestones] = await Promise.all([
+        fetchJSON('/projects/' + encodeURIComponent(currentProjectId) + '/gantt?from_date=' + fromStr + '&to_date=' + toStr),
+        fetchJSON('/projects/' + encodeURIComponent(currentProjectId) + '/milestones'),
+      ]);
+      renderGantt(tasks, milestones, fromStr, toStr);
     } catch (e) {
       ganttContainer.innerHTML = '<div class="error">読み込み失敗: ' + escapeHtml(e.message) + '</div>';
     }
   }
 
-  function renderGantt(tasks, rangeFrom, rangeTo) {
-    if (tasks.length === 0) {
-      ganttContainer.innerHTML = '<p class="hint">この期間にタスクがありません。タスクに開始日・期限を設定するとガントで表示されます。</p>';
-      return;
-    }
+  function renderGanttBar(rangeStart, rangeDays, dayWidth, item, isMilestone) {
+    const start = parseDate(item.start_date) || parseDate(item.due_date) || new Date();
+    const end = parseDate(item.due_date) || parseDate(item.start_date) || new Date(start.getTime() + 24 * 60 * 60 * 1000);
+    const startMs = start.getTime();
+    const endMs = end.getTime();
+    let leftPct = ((startMs - rangeStart) / (24 * 60 * 60 * 1000)) * dayWidth;
+    let widthPct = ((endMs - startMs) / (24 * 60 * 60 * 1000)) * dayWidth;
+    if (widthPct < 1) widthPct = 1;
+    if (leftPct < 0) { widthPct += leftPct; leftPct = 0; }
+    if (leftPct + widthPct > 100) widthPct = 100 - leftPct;
+    const barClass = isMilestone ? 'gantt-bar gantt-bar-milestone' : 'gantt-bar';
+    return `<div class="${barClass}" style="left:${leftPct}%;width:${widthPct}%" title="${escapeAttr((item.start_date || '') + ' ～ ' + (item.due_date || ''))}"></div>`;
+  }
+
+  function renderGantt(tasks, milestones, rangeFrom, rangeTo) {
     const rangeStart = parseDate(rangeFrom).getTime();
     const rangeEnd = parseDate(rangeTo).getTime();
     const rangeDays = (rangeEnd - rangeStart) / (24 * 60 * 60 * 1000) || 1;
@@ -482,20 +495,8 @@
     const todayPct = rangeDays > 0 ? ((todayMs - rangeStart) / (24 * 60 * 60 * 1000)) * dayWidth : null;
     const showToday = todayPct != null && todayPct >= 0 && todayPct <= 100;
     const todayLineStyle = showToday ? `left:${todayPct}%` : '';
-    const rows = tasks.map(t => {
-      const start = parseDate(t.start_date) || parseDate(t.due_date) || new Date();
-      const end = parseDate(t.due_date) || parseDate(t.start_date) || new Date(start.getTime() + 24 * 60 * 60 * 1000);
-      const startMs = start.getTime();
-      const endMs = end.getTime();
-      let leftPct = ((startMs - rangeStart) / (24 * 60 * 60 * 1000)) * dayWidth;
-      let widthPct = ((endMs - startMs) / (24 * 60 * 60 * 1000)) * dayWidth;
-      if (widthPct < 1) widthPct = 1;
-      if (leftPct < 0) { widthPct += leftPct; leftPct = 0; }
-      if (leftPct + widthPct > 100) widthPct = 100 - leftPct;
-      const label = escapeHtml(t.id) + ' ' + escapeHtml(t.title || '');
-      const todayLine = showToday ? `<div class="gantt-today-line" style="${todayLineStyle}" title="今日"></div>` : '';
-      return `<div class="gantt-row"><div class="gantt-label" title="${escapeAttr(t.id)}">${label}</div><div class="gantt-bar-wrap">${todayLine}<div class="gantt-bar" style="left:${leftPct}%;width:${widthPct}%" title="${escapeAttr((t.start_date || '') + ' ～ ' + (t.due_date || ''))}"></div></div></div>`;
-    });
+    const todayLine = showToday ? `<div class="gantt-today-line" style="${todayLineStyle}" title="今日"></div>` : '';
+
     const weeks = [];
     let d = new Date(parseDate(rangeFrom).getTime());
     const endD = parseDate(rangeTo);
@@ -504,7 +505,33 @@
       d = new Date(d.getTime() + 7 * 24 * 60 * 60 * 1000);
     }
     const headerTodayLine = showToday ? `<div class="gantt-today-line" style="${todayLineStyle}" title="今日"></div>` : '';
-    ganttContainer.innerHTML = '<div class="gantt-header"><div class="gantt-label gantt-label-head">タスク</div><div class="gantt-chart-area"><div class="gantt-weeks">' + weeks.join('') + '</div>' + headerTodayLine + '</div></div>' + rows.join('');
+
+    const rangeFromStr = rangeFrom;
+    const rangeToStr = rangeTo;
+    const inRange = (m) => (m.due_date >= rangeFromStr && m.start_date <= rangeToStr);
+    const visibleMilestones = milestones.filter(inRange);
+
+    if (visibleMilestones.length === 0 && tasks.length === 0) {
+      ganttContainer.innerHTML = '<p class="hint">この期間にタスクがありません。タスクに開始日・期限を設定するか、マイルストーンを追加するとガントで表示されます。</p>';
+      return;
+    }
+
+    let html = '<div class="gantt-header"><div class="gantt-label gantt-label-head">項目</div><div class="gantt-chart-area"><div class="gantt-weeks">' + weeks.join('') + '</div>' + headerTodayLine + '</div></div>';
+
+    if (visibleMilestones.length > 0) {
+      visibleMilestones.forEach(m => {
+        const label = '<span class="gantt-milestone-label">' + escapeHtml(m.id) + '</span> ' + escapeHtml(m.title || '');
+        const bar = renderGanttBar(rangeStart, rangeDays, dayWidth, m, true);
+        html += `<div class="gantt-row gantt-row-milestone"><div class="gantt-label" title="${escapeAttr(m.id)}">${label}</div><div class="gantt-bar-wrap">${todayLine}${bar}</div></div>`;
+      });
+    }
+    tasks.forEach(t => {
+      const label = escapeHtml(t.id) + ' ' + escapeHtml(t.title || '');
+      const bar = renderGanttBar(rangeStart, rangeDays, dayWidth, t, false);
+      html += `<div class="gantt-row"><div class="gantt-label" title="${escapeAttr(t.id)}">${label}</div><div class="gantt-bar-wrap">${todayLine}${bar}</div></div>`;
+    });
+
+    ganttContainer.innerHTML = html;
   }
 
   async function removeDependency(fromTaskId, toTaskId) {
