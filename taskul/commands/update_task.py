@@ -4,6 +4,7 @@ import click
 from ..db import get_connection, ensure_schema, get_task, get_milestone, row_to_task, set_task_depth_and_cascade, recalc_parent_status
 from ..events import record_event
 from ..cycle_check import would_create_parent_cycle
+from ..date_utils import parse_date
 
 STATUSES = ("Backlog", "Todo", "Doing", "Review", "Done")
 _UNSET = object()  # sentinel: omit from update when not provided (e.g. from API)
@@ -39,10 +40,10 @@ def update_task_impl(
         params.append(description)
     if start_date is not None:
         updates.append("start_date = ?")
-        params.append(start_date)
+        params.append(parse_date(start_date))
     if due_date is not None:
         updates.append("due_date = ?")
-        params.append(due_date)
+        params.append(parse_date(due_date))
     if estimate_hours is not None:
         updates.append("estimate_hours = ?")
         params.append(estimate_hours)
@@ -125,8 +126,8 @@ def update_task_impl(
 @click.option("--title", default=None, help="New title")
 @click.option("--description", default=None, help="New description")
 @click.option("--status", default=None, type=click.Choice(STATUSES), help="New status")
-@click.option("--start-date", default=None, help="Start date YYYY-MM-DD")
-@click.option("--due-date", default=None, help="Due date YYYY-MM-DD")
+@click.option("--start-date", default=None, help="Start date (YYYY-MM-DD, YYYY/MM/DD, YYYYMMDD, or MMDD)")
+@click.option("--due-date", default=None, help="Due date (YYYY-MM-DD, YYYY/MM/DD, YYYYMMDD, or MMDD)")
 @click.option("--estimate-hours", default=None, type=float, help="Estimate hours")
 @click.option("--milestone-id", default=_CLI_OMIT, help="Milestone id (empty string to clear)")
 @click.option("--parent-task-id", default=_CLI_OMIT, help="Parent task id for subtask (empty string to clear)")

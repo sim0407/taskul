@@ -3,6 +3,7 @@ import json
 import click
 from ..db import get_connection, ensure_schema, next_id, row_to_task, get_milestone, get_task, recalc_parent_status
 from ..events import record_event
+from ..date_utils import parse_date
 STATUSES = ("Backlog", "Todo", "Doing", "Review", "Done")
 
 # Sentinel value for unspecified optional arguments
@@ -18,6 +19,8 @@ def create_task_impl(
     parent_task_id: str | None = None,
     start_date: str | None = _UNSET,
     due_date: str | None = _UNSET,
+    description: str | None = None,
+    estimate_hours: float | None = None,
 ) -> dict:
     cur = conn.execute("SELECT id FROM projects WHERE id = ?", (project_id,))
     if cur.fetchone() is None:
@@ -45,9 +48,13 @@ def create_task_impl(
 
     if start_date is _UNSET:
         start_date = parent["start_date"] if parent else None
+    elif start_date is not None:
+        start_date = parse_date(start_date)
 
     if due_date is _UNSET:
         due_date = parent["due_date"] if parent else None
+    elif due_date is not None:
+        due_date = parse_date(due_date)
 
     # Validate milestone if specified
     if milestone_id:
@@ -61,9 +68,9 @@ def create_task_impl(
     conn.execute(
         """
         INSERT INTO tasks (id, project_id, title, description, status, start_date, due_date, estimate_hours, milestone_id, parent_task_id, depth)
-        VALUES (?, ?, ?, NULL, ?, ?, ?, NULL, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
-        (task_id, project_id, title, status, start_date, due_date, milestone_id, parent_task_id, depth),
+        (task_id, project_id, title, description, status, start_date, due_date, estimate_hours, milestone_id, parent_task_id, depth),
     )
     record_event(conn, "human", "TASK_CREATED", {"task_id": task_id, "project_id": project_id, "title": title, "status": status})
 
@@ -83,11 +90,13 @@ def create_task_impl(
 @click.option("--status", default=None, help="Task status (default: Backlog, or inherit from parent)")
 @click.option("--milestone-id", "milestone_id", default=None, help="Milestone id (optional, inherit from parent if not specified)")
 @click.option("--parent-task-id", "parent_task_id", default=None, help="Parent task id for subtask (optional)")
-@click.option("--start-date", "start_date", default=None, help="Start date YYYY-MM-DD (optional, inherit from parent if not specified)")
-@click.option("--due-date", "due_date", default=None, help="Due date YYYY-MM-DD (optional, inherit from parent if not specified)")
+@click.option("--start-date", "start_date", default=None, help="Start date (YYYY-MM-DD, YYYY/MM/DD, YYYYMMDD, or MMDD)")
+@click.option("--due-date", "due_date", default=None, help="Due date (YYYY-MM-DD, YYYY/MM/DD, YYYYMMDD, or MMDD)")
+@click.option("--description", default=None, help="Task description (optional)")
+@click.option("--estimate-hours", "estimate_hours", default=None, type=float, help="Estimated hours (optional)")
 @click.option("--json-output", "json_output", is_flag=True, default=None, help="Output as JSON")
 @click.option("--db", "db_path", envvar="TASKUL_DB", default=None, help="SQLite DB path")
-def create_task(project_id: str, title: str, status: str | None, milestone_id: str | None, parent_task_id: str | None, start_date: str | None, due_date: str | None, json_output: bool | None, db_path: str | None):
+def create_task(project_id: str, title: str, status: str | None, milestone_id: str | None, parent_task_id: str | None, start_date: str | None, due_date: str | None, description: str | None, estimate_hours: float | None, json_output: bool | None, db_path: str | None):
     """Create a new task in a project. status defaults to Backlog (or inherits from parent if subtask)."""
     conn = get_connection(db_path)
     ensure_schema(conn)
@@ -101,6 +110,8 @@ def create_task(project_id: str, title: str, status: str | None, milestone_id: s
             parent_task_id=parent_task_id,
             start_date=start_date if start_date is not None else _UNSET,
             due_date=due_date if due_date is not None else _UNSET,
+            description=description,
+            estimate_hours=estimate_hours,
         )
     except ValueError as e:
         click.echo(str(e), err=True)

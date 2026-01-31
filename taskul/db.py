@@ -3,6 +3,8 @@ import os
 import sqlite3
 from pathlib import Path
 
+from .date_utils import parse_date
+
 DEFAULT_DB_PATH = os.environ.get("TASKUL_DB", str(Path.home() / ".taskul" / "taskul.db"))
 
 _SCHEMA_SQL_PATH = Path(__file__).resolve().parent.parent / "schema" / "init.sql"
@@ -133,6 +135,8 @@ def create_milestone(
     due_date: str,
 ) -> dict:
     """Create a milestone. Caller must commit. Raises ValueError on validation error."""
+    start_date = parse_date(start_date)
+    due_date = parse_date(due_date)
     if start_date > due_date:
         raise ValueError("start_date must be <= due_date")
     cur = conn.execute("SELECT id FROM projects WHERE id = ?", (project_id,))
@@ -163,9 +167,11 @@ def update_milestone(
         updates.append("title = ?")
         params.append(title)
     if start_date is not None:
+        start_date = parse_date(start_date)
         updates.append("start_date = ?")
         params.append(start_date)
     if due_date is not None:
+        due_date = parse_date(due_date)
         updates.append("due_date = ?")
         params.append(due_date)
     if updates:
