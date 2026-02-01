@@ -306,12 +306,18 @@ def get_board(
     )
 
     for status in statuses:
-        # Order by parent's due_date (own due_date for root tasks), then start_date, created_at
+        # Order by parent task first (due_date, start_date, created_at), then by own fields
         cur = conn.execute(
             f"""SELECT t.*, parent.title AS parent_title FROM tasks t
                LEFT JOIN tasks parent ON parent.id = t.parent_task_id
                WHERE t.project_id = ? AND t.status = ?{filter_clause_t}
-               ORDER BY COALESCE(parent.due_date, t.due_date) NULLS LAST, t.start_date NULLS LAST, t.created_at""",
+               ORDER BY
+                   COALESCE(parent.due_date, t.due_date) NULLS LAST,
+                   COALESCE(parent.start_date, t.start_date) NULLS LAST,
+                   COALESCE(parent.created_at, t.created_at),
+                   t.due_date NULLS LAST,
+                   t.start_date NULLS LAST,
+                   t.created_at""",
             (project_id, status),
         )
         lanes[status] = [row_to_task(row, conn) for row in cur.fetchall()]
