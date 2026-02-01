@@ -306,7 +306,7 @@ def get_board(
     )
 
     for status in statuses:
-        # Order by root task (so same root and descendants are grouped), then parent due_date, start_date, created_at
+        # Order by root task group (root's due_date, start_date, created_at), then within group by parent due_date, start_date, created_at
         cur = conn.execute(
             f"""WITH RECURSIVE ancestor(task_id, root_id) AS (
                  SELECT id, id FROM tasks WHERE parent_task_id IS NULL
@@ -316,8 +316,10 @@ def get_board(
                SELECT t.*, parent.title AS parent_title FROM tasks t
                LEFT JOIN tasks parent ON parent.id = t.parent_task_id
                INNER JOIN ancestor ON ancestor.task_id = t.id
+               INNER JOIN tasks root_task ON root_task.id = ancestor.root_id
                WHERE t.project_id = ? AND t.status = ?{filter_clause_t}
-               ORDER BY ancestor.root_id, COALESCE(parent.due_date, t.due_date) NULLS LAST, t.start_date NULLS LAST, t.created_at""",
+               ORDER BY root_task.due_date NULLS LAST, root_task.start_date NULLS LAST, root_task.created_at,
+                        COALESCE(parent.due_date, t.due_date) NULLS LAST, t.start_date NULLS LAST, t.created_at""",
             (project_id, status),
         )
         lanes[status] = [row_to_task(row, conn) for row in cur.fetchall()]
