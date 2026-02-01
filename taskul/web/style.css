@@ -399,9 +399,7 @@ main { padding: 1rem; max-width: 1600px; margin: 0 auto; }
   color: var(--text);
   font-size: 0.9rem;
 }
-.gantt-date:focus { outline: none; border-color: var(--accent); }
-
-.gantt-container {
+.gantt-date:focus { outline: none; border-color: var(--accent); }.gantt-container {
   overflow-x: auto;
   margin-top: 0.5rem;
 }

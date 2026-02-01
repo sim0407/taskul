@@ -881,13 +881,41 @@
     return { fromStr: from.toISOString().slice(0, 10), toStr: to.toISOString().slice(0, 10) };
   }
 
+  function minMaxDateFromGanttData(tasks, milestones) {
+    const dates = [];
+    (tasks || []).forEach(t => {
+      if (t.start_date) dates.push(t.start_date);
+      if (t.due_date) dates.push(t.due_date);
+    });
+    (milestones || []).forEach(m => {
+      if (m.start_date) dates.push(m.start_date);
+      if (m.due_date) dates.push(m.due_date);
+    });
+    if (dates.length === 0) return null;
+    dates.sort();
+    return { fromStr: dates[0], toStr: dates[dates.length - 1] };
+  }
+
   async function showGantt() {
     if (!currentProjectId) return;
     showView(viewGantt);
-    const range = defaultGanttRange();
-    $('gantt-from').value = range.fromStr;
-    $('gantt-to').value = range.toStr;
-    await loadGanttWithRange(range.fromStr, range.toStr);
+    ganttContainer.innerHTML = '<div class="loading">読み込み中…</div>';
+    try {
+      const [tasks, milestones] = await Promise.all([
+        fetchJSON('/projects/' + encodeURIComponent(currentProjectId) + '/gantt'),
+        fetchJSON('/projects/' + encodeURIComponent(currentProjectId) + '/milestones'),
+      ]);
+      const range = minMaxDateFromGanttData(tasks, milestones) || defaultGanttRange();
+      $('gantt-from').value = range.fromStr;
+      $('gantt-to').value = range.toStr;
+      lastGanttTasks = tasks;
+      lastGanttMilestones = milestones || [];
+      lastGanttRange = { fromStr: range.fromStr, toStr: range.toStr };
+      fillGanttFilterSelects(tasks, milestones);
+      applyGanttFiltersAndRender();
+    } catch (e) {
+      ganttContainer.innerHTML = '<div class="error">読み込み失敗: ' + escapeHtml(e.message) + '</div>';
+    }
   }
 
   function fillGanttFilterSelects(tasks, milestones) {
