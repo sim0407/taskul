@@ -223,6 +223,10 @@ main { padding: 1rem; max-width: 1600px; margin: 0 auto; }
   color: var(--muted);
   margin-top: 0.2rem;
 }
+.card-meta-overdue {
+  color: #f7768e;
+  font-weight: 600;
+}
 .card-parent-info {
   font-size: 0.7rem;
   color: var(--accent);
@@ -383,9 +387,7 @@ main { padding: 1rem; max-width: 1600px; margin: 0 auto; }
 .form-actions .btn-cancel { background: var(--lane-bg); color: var(--text); border: 1px solid var(--card-border); }
 .form-actions .btn-submit:hover, .form-actions .btn-cancel:hover { opacity: 0.9; }
 .form-error { color: #f7768e; font-size: 0.85rem; margin-top: 0.25rem; }
-.form-hint { color: var(--muted); font-size: 0.8rem; font-weight: normal; }
-
-.gantt-toolbar {
+.form-hint { color: var(--muted); font-size: 0.8rem; font-weight: normal; }.gantt-toolbar {
   flex-wrap: wrap;
   align-items: center;
   gap: 0.5rem;

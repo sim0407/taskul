@@ -27,6 +27,7 @@
   let lastGanttMilestones = [];
   let lastGanttRange = { fromStr: '', toStr: '' };
   let collapsedParents = new Set(); // Track collapsed parent tasks
+  let boardEditMode = true; // true = edit (show buttons), false = view (hide buttons and 親 badge)
 
   function showView(view) {
     [viewProjects, viewBoard, viewGantt, viewBlockers].forEach(el => el.classList.add('hidden'));
@@ -507,6 +508,11 @@
 
   function renderBoardWithFilters() {
     if (!lastBoard) return;
+    const modeBtn = $('btn-board-mode');
+    if (modeBtn) {
+      modeBtn.textContent = boardEditMode ? '閲覧' : '編集';
+      modeBtn.title = boardEditMode ? '閲覧モードにする' : '編集モードにする';
+    }
     const milestoneId = ($('board-filter-milestone') && $('board-filter-milestone').value) || '';
     const parentValue = ($('board-filter-parent') && $('board-filter-parent').value) || '';
     const depthValue = ($('board-filter-depth') && $('board-filter-depth').value) || '';
@@ -519,51 +525,53 @@
       const cards = visibleTasks.map(t => renderCard(t, status));
       return `<div class="lane ${status}" data-status="${escapeAttr(status)}"><div class="lane-title">${escapeHtml(status)}</div><div class="lane-cards">${cards.join('')}</div></div>`;
     }).join('');
-    boardLanes.querySelectorAll('.btn-move-left, .btn-move-right').forEach(btn => {
-      btn.addEventListener('click', () => moveTask(btn.dataset.taskId, btn.dataset.status));
-    });
-    boardLanes.querySelectorAll('.btn-add-subtask').forEach(btn => {
-      btn.addEventListener('click', () => openAddSubtaskModal(btn.dataset.taskId, btn.dataset.taskTitle || '', btn.dataset.taskStatus || ''));
-    });
-    boardLanes.querySelectorAll('.btn-card-edit').forEach(btn => {
-      btn.addEventListener('click', () => openEditTaskModal(btn.dataset.taskId));
-    });
-    boardLanes.querySelectorAll('.btn-collapse').forEach(btn => {
-      btn.addEventListener('click', () => toggleCollapse(btn.dataset.taskId));
-    });
+    if (boardEditMode) {
+      boardLanes.querySelectorAll('.btn-move-left, .btn-move-right').forEach(btn => {
+        btn.addEventListener('click', () => moveTask(btn.dataset.taskId, btn.dataset.status));
+      });
+      boardLanes.querySelectorAll('.btn-add-subtask').forEach(btn => {
+        btn.addEventListener('click', () => openAddSubtaskModal(btn.dataset.taskId, btn.dataset.taskTitle || '', btn.dataset.taskStatus || ''));
+      });
+      boardLanes.querySelectorAll('.btn-card-edit').forEach(btn => {
+        btn.addEventListener('click', () => openEditTaskModal(btn.dataset.taskId));
+      });
+      boardLanes.querySelectorAll('.btn-collapse').forEach(btn => {
+        btn.addEventListener('click', () => toggleCollapse(btn.dataset.taskId));
+      });
 
-    // ドラッグ&ドロップ（ステータス変更のみ）
-    boardLanes.querySelectorAll('.card').forEach(card => {
-      card.addEventListener('dragstart', (e) => {
-        e.dataTransfer.setData('text/plain', card.dataset.taskId);
-        card.classList.add('dragging');
+      // ドラッグ&ドロップ（ステータス変更のみ）
+      boardLanes.querySelectorAll('.card').forEach(card => {
+        card.addEventListener('dragstart', (e) => {
+          e.dataTransfer.setData('text/plain', card.dataset.taskId);
+          card.classList.add('dragging');
+        });
+        card.addEventListener('dragend', () => {
+          card.classList.remove('dragging');
+          boardLanes.querySelectorAll('.lane-cards').forEach(lc => lc.classList.remove('drag-over'));
+        });
       });
-      card.addEventListener('dragend', () => {
-        card.classList.remove('dragging');
-        boardLanes.querySelectorAll('.lane-cards').forEach(lc => lc.classList.remove('drag-over'));
-      });
-    });
 
-    boardLanes.querySelectorAll('.lane-cards').forEach(laneCards => {
-      laneCards.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        laneCards.classList.add('drag-over');
-      });
-      laneCards.addEventListener('dragleave', (e) => {
-        if (!laneCards.contains(e.relatedTarget)) {
+      boardLanes.querySelectorAll('.lane-cards').forEach(laneCards => {
+        laneCards.addEventListener('dragover', (e) => {
+          e.preventDefault();
+          laneCards.classList.add('drag-over');
+        });
+        laneCards.addEventListener('dragleave', (e) => {
+          if (!laneCards.contains(e.relatedTarget)) {
+            laneCards.classList.remove('drag-over');
+          }
+        });
+        laneCards.addEventListener('drop', async (e) => {
+          e.preventDefault();
           laneCards.classList.remove('drag-over');
-        }
+          const taskId = e.dataTransfer.getData('text/plain');
+          if (!taskId) return;
+          const lane = laneCards.closest('.lane');
+          const status = lane.dataset.status;
+          await moveTask(taskId, status);
+        });
       });
-      laneCards.addEventListener('drop', async (e) => {
-        e.preventDefault();
-        laneCards.classList.remove('drag-over');
-        const taskId = e.dataTransfer.getData('text/plain');
-        if (!taskId) return;
-        const lane = laneCards.closest('.lane');
-        const status = lane.dataset.status;
-        await moveTask(taskId, status);
-      });
-    });
+    }
   }
 
   function renderBoard(board) {
@@ -624,14 +632,14 @@
     const prevStatus = hasPrev ? STATUSES[idx - 1] : null;
     const nextStatus = hasNext ? STATUSES[idx + 1] : null;
     const hasChildren = taskHasChildren(t.id);
-    const draggable = hasChildren ? 'false' : 'true';
+    const draggable = !boardEditMode || hasChildren ? 'false' : 'true';
 
-    // Collapse/expand button for parent tasks
+    // Collapse/expand button and 親 badge (omit in view mode)
     const isCollapsed = collapsedParents.has(t.id);
-    const collapseBtn = hasChildren
+    const collapseBtn = boardEditMode && hasChildren
       ? `<button type="button" class="btn-collapse" data-task-id="${escapeAttr(t.id)}" title="${isCollapsed ? '展開' : '折り畳み'}">${isCollapsed ? '+' : '-'}</button>`
       : '';
-    const parentBadge = hasChildren ? '<span class="card-parent-badge" title="ステータスは子タスクから自動計算">親</span>' : '';
+    const parentBadge = boardEditMode && hasChildren ? '<span class="card-parent-badge" title="ステータスは子タスクから自動計算">親</span>' : '';
 
     // Show parent path for child tasks (grandparent/parent/ format). When parent is filtered out, show parent_task_id + parent_title from API.
     let parentInfo = '';
@@ -641,7 +649,7 @@
       parentInfo = `<div class="card-parent-info" title="${escapeAttr(displayText)}">${escapeHtml(displayText)}</div>`;
     }
 
-    // Due date and estimate display
+    // Due date and estimate display (highlight due date when on or before today and not Done)
     let metaInfo = '';
     const dueDateStr = t.due_date ? t.due_date.slice(5).replace('-', '/') : '';
     const estimateStr = t.estimate_hours != null ? t.estimate_hours + 'h' : '';
@@ -649,10 +657,14 @@
       const parts = [];
       if (dueDateStr) parts.push(dueDateStr);
       if (estimateStr) parts.push(estimateStr);
-      metaInfo = `<div class="card-meta">${escapeHtml(parts.join(' | '))}</div>`;
+      const todayStr = new Date().toISOString().slice(0, 10);
+      const isOverdue = t.due_date && t.due_date <= todayStr && t.status !== 'Done';
+      const metaClass = isOverdue ? ' card-meta card-meta-overdue' : ' card-meta';
+      metaInfo = `<div class="${metaClass.trim()}">${escapeHtml(parts.join(' | '))}</div>`;
     }
 
-    const actions = `
+    const actions = boardEditMode
+      ? `
       <div class="card-actions">
         ${collapseBtn}
         ${hasPrev && !hasChildren ? `<button type="button" class="btn-move-left btn-arrow" data-task-id="${escapeAttr(t.id)}" data-status="${escapeAttr(prevStatus)}" title="${escapeAttr(prevStatus)}へ">←</button>` : ''}
@@ -660,14 +672,17 @@
         <button type="button" class="btn-add-subtask" data-task-id="${escapeAttr(t.id)}" data-task-title="${escapeAttr(t.title || '')}" data-task-status="${escapeAttr(currentStatus)}" title="子タスクを追加">+子タスク</button>
         <button type="button" class="btn-card-edit" data-task-id="${escapeAttr(t.id)}">編集</button>
       </div>
-    `;
+    `
+      : '';
 
     // Child task indentation
     const isChild = t.parent_task_id && !parentInfo; // In same status as parent
     const childClass = isChild ? ' card-child' : '';
     const depthClass = t.depth > 0 ? ` card-depth-${Math.min(t.depth, 3)}` : '';
 
-    return `<div class="card${hasChildren ? ' card-parent' : ''}${childClass}${depthClass}" data-task-id="${escapeAttr(t.id)}" draggable="${draggable}">${parentInfo}<div class="card-title">${escapeHtml(t.title)}</div>${metaInfo}<div class="card-footer">${parentBadge}${actions}</div></div>`;
+    const footerContent = parentBadge + actions;
+    const footer = footerContent ? `<div class="card-footer">${footerContent}</div>` : '';
+    return `<div class="card${hasChildren ? ' card-parent' : ''}${childClass}${depthClass}" data-task-id="${escapeAttr(t.id)}" draggable="${draggable}">${parentInfo}<div class="card-title">${escapeHtml(t.title)}</div>${metaInfo}${footer}</div>`;
   }
 
   async function markDone(taskId) {
@@ -1330,6 +1345,10 @@
     currentProjectName = null;
     loadProjects();
     showView(viewProjects);
+  });
+  $('btn-board-mode').addEventListener('click', () => {
+    boardEditMode = !boardEditMode;
+    renderBoardWithFilters();
   });
   $('btn-back').addEventListener('click', () => {
     setBoardTitle('');
