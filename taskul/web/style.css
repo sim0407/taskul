@@ -457,10 +457,21 @@ main { padding: 1rem; max-width: 1600px; margin: 0 auto; }
 .gantt-row .gantt-label {
   flex-shrink: 0;
   width: 220px;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+  color: var(--text);
+}
+.gantt-row .gantt-label-title {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--text);
+  min-width: 0;
+  flex: 1;
+}
+.gantt-row .gantt-label .gantt-status {
+  flex-shrink: 0;
 }
 .gantt-bar-wrap {
   flex: 1;
@@ -571,9 +582,7 @@ main { padding: 1rem; max-width: 1600px; margin: 0 auto; }
 
 /* Form success message */
 .form-success { color: #9ece6a; font-size: 0.85rem; margin-top: 0.25rem; }
-.form-success.hidden { display: none; }
-
-/* Task edit modal action buttons */
+.form-success.hidden { display: none; }/* Task edit modal action buttons */
 .btn-mark-done, .btn-delete-task {
   background: var(--lane-bg);
   color: var(--text);
@@ -582,9 +591,7 @@ main { padding: 1rem; max-width: 1600px; margin: 0 auto; }
 .btn-mark-done { color: #9ece6a; border-color: #9ece6a; }
 .btn-mark-done:hover { background: #9ece6a; color: var(--bg); }
 .btn-delete-task { color: #f7768e; border-color: #f7768e; }
-.btn-delete-task:hover { background: #f7768e; color: var(--bg); }
-
-/* Modal form hr */
+.btn-delete-task:hover { background: #f7768e; color: var(--bg); }/* Modal form hr */
 .modal-body hr {
   border: none;
   border-top: 1px solid var(--card-border);

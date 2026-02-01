@@ -1040,9 +1040,9 @@
     tasks.forEach(t => {
       const statusClass = t.status ? 'gantt-status gantt-status-' + t.status.toLowerCase() : '';
       const statusBadge = t.status ? `<span class="${statusClass}">${escapeHtml(t.status)}</span>` : '';
-      const label = escapeHtml(t.id) + ' ' + escapeHtml(t.title || '') + ' ' + statusBadge;
+      const titlePart = escapeHtml(t.id) + ' ' + escapeHtml(t.title || '');
       const bar = renderGanttBar(rangeStart, rangeDays, dayWidth, t, false);
-      html += `<div class="gantt-row"><div class="gantt-label" title="${escapeAttr(t.id)}">${label}</div><div class="gantt-bar-wrap">${todayLine}${bar}</div></div>`;
+      html += `<div class="gantt-row"><div class="gantt-label" title="${escapeAttr(t.id)}"><span class="gantt-label-title">${titlePart}</span>${statusBadge}</div><div class="gantt-bar-wrap">${todayLine}${bar}</div></div>`;
     });
 
     ganttContainer.innerHTML = html;
