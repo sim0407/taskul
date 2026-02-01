@@ -274,7 +274,7 @@ def get_board(
     missing_estimate: bool = False,
 ) -> dict | None:
     """
-    Get Kanban board: lanes by status with tasks ordered by parent's due_date (own due_date for root tasks), then start_date, created_at.
+    Get Kanban board: lanes by status with tasks ordered by root task (top-level ancestor), then parent's due_date, start_date, created_at.
     Returns None if project does not exist.
 
     Filters (if True, only show tasks missing that field):
@@ -306,18 +306,18 @@ def get_board(
     )
 
     for status in statuses:
-        # Order by parent task first (due_date, start_date, created_at), then by own fields
+        # Order by root task (so same root and descendants are grouped), then parent due_date, start_date, created_at
         cur = conn.execute(
-            f"""SELECT t.*, parent.title AS parent_title FROM tasks t
+            f"""WITH RECURSIVE ancestor(task_id, root_id) AS (
+                 SELECT id, id FROM tasks WHERE parent_task_id IS NULL
+                 UNION ALL
+                 SELECT t2.id, a.root_id FROM tasks t2 INNER JOIN ancestor a ON t2.parent_task_id = a.task_id
+               )
+               SELECT t.*, parent.title AS parent_title FROM tasks t
                LEFT JOIN tasks parent ON parent.id = t.parent_task_id
+               INNER JOIN ancestor ON ancestor.task_id = t.id
                WHERE t.project_id = ? AND t.status = ?{filter_clause_t}
-               ORDER BY
-                   COALESCE(parent.due_date, t.due_date) NULLS LAST,
-                   COALESCE(parent.start_date, t.start_date) NULLS LAST,
-                   COALESCE(parent.created_at, t.created_at),
-                   t.due_date NULLS LAST,
-                   t.start_date NULLS LAST,
-                   t.created_at""",
+               ORDER BY ancestor.root_id, COALESCE(parent.due_date, t.due_date) NULLS LAST, t.start_date NULLS LAST, t.created_at""",
             (project_id, status),
         )
         lanes[status] = [row_to_task(row, conn) for row in cur.fetchall()]
